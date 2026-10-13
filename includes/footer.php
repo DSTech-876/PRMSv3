@@ -4,6 +4,17 @@
     </div>
 </div> <!-- end container-fluid -->
 
+<!--
+  Bootstrap JS bundle must load before any inline script that constructs
+  `new bootstrap.Modal(...)` immediately (not inside a deferred function/
+  event handler). Previously this was loaded at the very bottom of this
+  file, after the inline systemModal flash script below, which called
+  `new bootstrap.Modal(...)` synchronously and threw
+  "ReferenceError: bootstrap is not defined" whenever a session flash
+  modal was shown.
+-->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
 <!-- Footer -->
 <footer class="prms-footer">
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -243,7 +254,6 @@ function refreshTable() {
 </script>
 
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/assets/js/ModalManager.js?v=<?= time() ?>"></script>
 <script src="/assets/js/app-nav.js?v=<?= time() ?>"></script>
 <script src="/assets/js/pipeline.js?v=<?= time() ?>"></script>
