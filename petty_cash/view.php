@@ -759,8 +759,8 @@ $csrfToken = ensureCsrfToken();
                     re-completed from the target stage.
                 </div>
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Revert to Stage</label>
-                    <select name="target_status" class="form-select" required>
+                    <label for="revertTargetStatus" class="form-label fw-bold">Revert to Stage</label>
+                    <select id="revertTargetStatus" name="target_status" class="form-select" required>
                         <option value="">— Select target stage —</option>
                         <?php foreach ($revertTargets ?? [] as $target): ?>
                         <option value="<?= htmlspecialchars($target['status']) ?>">
@@ -774,8 +774,8 @@ $csrfToken = ensureCsrfToken();
                     <small class="text-muted">The request will be returned to the selected stage for correction.</small>
                 </div>
                 <div class="mb-0">
-                    <label class="form-label fw-bold">Reason <span class="text-danger">*</span></label>
-                    <textarea name="reason" class="form-control" rows="4" required
+                    <label for="revertStageReason" class="form-label fw-bold">Reason <span class="text-danger">*</span></label>
+                    <textarea id="revertStageReason" name="reason" class="form-control" rows="4" required
                               placeholder="Explain why this request is being moved back to a prior stage..."></textarea>
                 </div>
             </div>
