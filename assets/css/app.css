@@ -745,12 +745,12 @@ a:hover { color: var(--dgc-green-dark); }
 /* ── Page entry animation ─────────────────────────────────── */
 @keyframes prms-fadeIn {
   from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: none; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   main > *:not(.global-topbar) {
-    animation: prms-fadeIn 0.22s ease-out both;
+    animation: prms-fadeIn 0.22s ease-out;
   }
 }
 
