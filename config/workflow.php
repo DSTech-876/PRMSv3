@@ -441,8 +441,9 @@ function canApproveStage(string $userRole, string $stageRole, float $estimatedVa
 
     // Equivalent / interchangeable roles
     $equivalentRoles = [
-        'HOD' => ['Branch Head'],
-        'Branch Head' => ['HOD'],
+        'HOD' => ['Branch Head', 'Director HRM&A'],
+        'Branch Head' => ['HOD', 'Director HRM&A'],
+        'Director HRM&A' => ['HOD', 'Branch Head'],
         'Deputy Government Chemist' => ['Government Chemist'],
         'Government Chemist' => ['Deputy Government Chemist'],
     ];
