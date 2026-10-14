@@ -1711,8 +1711,8 @@ $canDeleteRequestDocument = hasPermission('procurement_delete_request_document')
                 <input type="hidden" name="request_id" value="<?= $request_id ?>">
                 <div class="row g-2 align-items-end">
                     <div class="col-md-3">
-                        <label class="form-label small">Document Type</label>
-                        <select name="document_type" class="form-select form-select-sm" required>
+                        <label for="uploadDocumentType" class="form-label small">Document Type</label>
+                        <select id="uploadDocumentType" name="document_type" class="form-select form-select-sm" required>
                             <option value="MEMO">Supporting Memo</option>
                             <option value="SIGNED_PO">Signed Purchase Order</option>
                             <option value="SIGNED_COMMITMENT">Signed Commitment</option>
@@ -1721,13 +1721,13 @@ $canDeleteRequestDocument = hasPermission('procurement_delete_request_document')
                         </select>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label small">File (PDF, Image, Word, Excel)</label>
-                        <input type="file" name="document_file" class="form-control form-control-sm"
+                        <label for="uploadDocumentFile" class="form-label small">File (PDF, Image, Word, Excel)</label>
+                        <input type="file" id="uploadDocumentFile" name="document_file" class="form-control form-control-sm"
                                accept=".pdf,.jpg,.jpeg,.png,.gif,.doc,.docx,.xls,.xlsx" required>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label small">Notes (optional)</label>
-                        <input type="text" name="notes" class="form-control form-control-sm"
+                        <label for="uploadDocumentNotes" class="form-label small">Notes (optional)</label>
+                        <input type="text" id="uploadDocumentNotes" name="notes" class="form-control form-control-sm"
                                placeholder="Brief note..." maxlength="255">
                     </div>
                     <div class="col-md-2">
@@ -1758,8 +1758,8 @@ $canDeleteRequestDocument = hasPermission('procurement_delete_request_document')
                 <p>Are you sure you want to delete <strong id="deleteDocumentName"></strong>?</p>
                 <p class="text-muted small">The file will be retained for audit purposes; this only removes it from the active documents list.</p>
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Reason for deletion</label>
-                    <textarea name="reason" class="form-control" rows="3" required
+                    <label for="deleteDocumentReason" class="form-label fw-bold">Reason for deletion</label>
+                    <textarea id="deleteDocumentReason" name="reason" class="form-control" rows="3" required
                               placeholder="Provide a reason for deleting this document..."></textarea>
                 </div>
             </div>
@@ -2031,11 +2031,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     <input type="hidden" name="signed_notice_action_token" value="">
                     
                     <div class="mb-3">
-                        <label class="form-label small fw-bold">
+                        <label for="signedRequestFile" class="form-label small fw-bold">
                             <i class="bi bi-file-earmark me-1"></i> Signed Document
                             <span class="text-danger">*</span>
                         </label>
-                        <input type="file" name="signed_request_file" class="form-control"
+                        <input type="file" id="signedRequestFile" name="signed_request_file" class="form-control"
                                accept=".pdf,.jpg,.jpeg,.png,.gif,.doc,.docx" required>
                         <small class="text-muted d-block mt-1">
                             Accepted: PDF, Images (JPG/PNG/GIF), Word documents. Max 25 MB.
@@ -2175,8 +2175,8 @@ function timelineMeta(string $action): array {
                 <input type="hidden" name="id" value="<?= $request['request_id'] ?>">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Reason for decline</label>
-                    <textarea name="reason" class="form-control" rows="4" required
+                    <label for="declineReason" class="form-label fw-bold">Reason for decline</label>
+                    <textarea id="declineReason" name="reason" class="form-control" rows="4" required
                               placeholder="Provide a detailed reason for declining this request..."></textarea>
                 </div>
             </div>
@@ -2203,8 +2203,8 @@ function timelineMeta(string $action): array {
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <p class="text-muted small mb-3">Cancellation stops this request permanently. The reason will be recorded in the audit trail and stakeholders will be notified.</p>
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Reason for cancellation <span class="text-danger">*</span></label>
-                    <textarea name="reason" class="form-control" rows="4" required
+                    <label for="cancelRequestReason" class="form-label fw-bold">Reason for cancellation <span class="text-danger">*</span></label>
+                    <textarea id="cancelRequestReason" name="reason" class="form-control" rows="4" required
                               placeholder="Provide a detailed reason for cancelling this request..."></textarea>
                 </div>
             </div>
@@ -2231,8 +2231,8 @@ function timelineMeta(string $action): array {
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <p class="text-muted small mb-3">A reason is required and will be recorded in the audit trail. Participants and stakeholders will be notified.</p>
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Reason <span class="text-danger">*</span></label>
-                    <textarea name="reason" class="form-control" rows="4" required
+                    <label for="pauseResumeReason" class="form-label fw-bold">Reason <span class="text-danger">*</span></label>
+                    <textarea id="pauseResumeReason" name="reason" class="form-control" rows="4" required
                               placeholder="Enter the reason for this <?= $current === 'PAUSED' ? 'resume' : 'pause' ?> action..."></textarea>
                 </div>
             </div>
@@ -2258,8 +2258,8 @@ function timelineMeta(string $action): array {
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <p class="text-muted small mb-3">This returns the request to draft so it can be updated and submitted again.</p>
                 <div class="mb-0">
-                    <label class="form-label fw-bold">Reason for sending back</label>
-                    <textarea name="reason" class="form-control" rows="4" required
+                    <label for="sendBackReason" class="form-label fw-bold">Reason for sending back</label>
+                    <textarea id="sendBackReason" name="reason" class="form-control" rows="4" required
                               placeholder="State what needs to be corrected before resubmission..."></textarea>
                 </div>
             </div>
@@ -2288,8 +2288,8 @@ function timelineMeta(string $action): array {
                     for stages after the target will need to be re-completed.
                 </div>
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Revert to Stage</label>
-                    <select name="target_status" class="form-select" required>
+                    <label for="revertTargetStatus" class="form-label fw-bold">Revert to Stage</label>
+                    <select id="revertTargetStatus" name="target_status" class="form-select" required>
                         <option value="">— Select target stage —</option>
                         <?php foreach ($revertTargets ?? [] as $target): ?>
                         <option value="<?= htmlspecialchars($target['status']) ?>">
@@ -2303,8 +2303,8 @@ function timelineMeta(string $action): array {
                     <small class="text-muted">The request will be returned to the selected stage for correction.</small>
                 </div>
                 <div class="mb-0">
-                    <label class="form-label fw-bold">Reason <span class="text-danger">*</span></label>
-                    <textarea name="reason" class="form-control" rows="4" required
+                    <label for="revertStageReason" class="form-label fw-bold">Reason <span class="text-danger">*</span></label>
+                    <textarea id="revertStageReason" name="reason" class="form-control" rows="4" required
                               placeholder="Explain why this request is being moved back to a prior stage..."></textarea>
                 </div>
             </div>
