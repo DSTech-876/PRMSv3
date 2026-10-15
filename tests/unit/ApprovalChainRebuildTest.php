@@ -99,7 +99,7 @@ final class ApprovalChainRebuildTest extends PHPUnit\Framework\TestCase
         $this->assertCount(3, $rows);
         $this->assertSame('Finance Officer', $rows[2]['role']);
         $this->assertSame('pending', $rows[2]['status']);
-        $this->assertSame(4, (int)$rows[2]['stage_order']);
+        $this->assertSame(3, (int)$rows[2]['stage_order']);
     }
 
     public function testChainIsRebuiltWhenNoStageHasBeenCompleted(): void

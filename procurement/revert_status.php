@@ -107,6 +107,33 @@ try {
         $userName
     );
 
+    /* Notify the officers who now own the request after the revert */
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/config/notifications.php';
+    try {
+        $nextRoleStmt = $pdo->prepare("
+            SELECT role
+            FROM request_approvals
+            WHERE request_id = ?
+              AND entity_type = 'REQUEST'
+              AND status = 'pending'
+            ORDER BY stage_order ASC, id ASC
+            LIMIT 1
+        ");
+        $nextRoleStmt->execute([$id]);
+        $nextRole = $nextRoleStmt->fetchColumn();
+
+        if ($nextRole) {
+            foreach (getUsersByRole((string)$nextRole) as $approver) {
+                if (empty($approver['user_id'])) {
+                    continue;
+                }
+                notifyApprovalNeeded($id, $targetStatus, (int)$approver['user_id']);
+            }
+        }
+    } catch (Throwable $notifyError) {
+        error_log('revert_status.php notification failed: ' . $notifyError->getMessage());
+    }
+
     pop(
         "Request reverted to " . str_replace('_', ' ', $targetStatus) . ".",
         "/procurement/view.php?id={$id}",
