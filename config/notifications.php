@@ -575,14 +575,13 @@ function notifyApprovalNeeded(int $requestId, string $stage, int $approverId): b
             return false;
         }
 
-        // Get approver email
+        // Get approver email (an in-app notification is still raised when absent)
         $approverEmail = getUserEmail($approverId);
         if (!$approverEmail) {
             error_log("NOTIFY: No email found for approver user ID $approverId");
-            return false;
+        } else {
+            error_log("NOTIFY: Found approver email: $approverEmail");
         }
-
-        error_log("NOTIFY: Found approver email: $approverEmail");
 
         // Get approver name
         $stmt2 = $pdo->prepare("SELECT full_name FROM users WHERE user_id = ?");
@@ -671,9 +670,12 @@ function notifyApprovalNeeded(int $requestId, string $stage, int $approverId): b
 </html>
 HTML;
 
-        error_log("NOTIFY: Sending email to $approverEmail with subject: $subject");
-        $result = sendMail($approverEmail, $subject, $html);
-        error_log("NOTIFY: Email send result: " . ($result ? "SUCCESS" : "FAILED"));
+        $result = false;
+        if ($approverEmail) {
+            error_log("NOTIFY: Sending email to $approverEmail with subject: $subject");
+            $result = sendMail($approverEmail, $subject, $html);
+            error_log("NOTIFY: Email send result: " . ($result ? "SUCCESS" : "FAILED"));
+        }
 
         /* In-app notification for approver */
         NotificationService::createNotification($approverId, NotificationService::TYPE_APPROVAL_NEEDED, [
@@ -5001,3 +5003,357 @@ function notifyPettyCashRequestorLifecycle(int $requestId, string $event): bool
 }
 
 ?>
+/**
+ * Notify stakeholders that a request has been moved to a different branch.
+ *
+ * Branch changes re-route the approval chain, so the requestor, the officers
+ * holding the newly responsible approval role, and (when known) the role that
+ * previously owned the outstanding stage all need to be told.
+ *
+ * @param int         $requestId     Procurement request ID
+ * @param string      $oldBranchName Branch the request was moved from
+ * @param string      $newBranchName Branch the request was moved to
+ * @param string      $actorName     Person who performed the change
+ * @param string|null $nextRole      Role that now owns the next pending approval
+ * @param string|null $previousRole  Role that owned the pending approval before the change
+ */
+function notifyRequestBranchChanged(
+    int $requestId,
+    string $oldBranchName,
+    string $newBranchName,
+    string $actorName,
+    ?string $nextRole = null,
+    ?string $previousRole = null
+): bool {
+    if (!notificationsEnabled()) return false;
+
+    global $pdo;
+    try {
+        $stmt = $pdo->prepare("
+            SELECT pr.request_number, pr.estimated_value, pr.currency, pr.request_type,
+                   pr.created_by, u.full_name AS requestor_name
+            FROM procurement_requests pr
+            LEFT JOIN users u ON pr.created_by = u.user_id
+            WHERE pr.request_id = ?
+        ");
+        $stmt->execute([$requestId]);
+        $request = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$request) return false;
+
+        $appUrl         = getAppUrl();
+        $currency       = normalizeCurrency($request['currency'] ?? 'JMD');
+        $estimatedValue = $currency . ' ' . number_format((float)($request['estimated_value'] ?? 0), 2);
+        $viewUrl        = "/procurement/view.php?id={$requestId}";
+
+        $safeRequestNumber = he($request['request_number']);
+        $safeOldBranch     = he($oldBranchName);
+        $safeNewBranch     = he($newBranchName);
+        $safeActor         = he($actorName);
+        $safeValue         = he($estimatedValue);
+        $safeNextRole      = he($nextRole ?? 'the next approver');
+
+        $subject = "Branch Updated: {$request['request_number']} moved to {$newBranchName}";
+        $html = <<<HTML
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<style>
+    body { font-family: Arial, sans-serif; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
+    .header { background: linear-gradient(90deg, #0b5e2b, #c9a227); color: white; padding: 20px; }
+    .content { padding: 20px; }
+    .alert { background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 15px 0; border-radius: 4px; }
+    .details { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; }
+    .detail-row { margin: 8px 0; }
+    .label { font-weight: bold; color: #555; }
+    .button { background: #0b5e2b; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; margin-top: 15px; }
+    .footer { background: #f8f9fa; padding: 15px; text-align: center; font-size: 12px; color: #777; border-top: 1px solid #ddd; }
+</style></head><body>
+<div class="container">
+    <div class="header">
+        <h2 style="margin: 0;">Request Branch Updated</h2>
+        <p style="margin: 5px 0 0 0;">Government Chemist - PIAMS</p>
+    </div>
+    <div class="content">
+        <div class="alert"><strong>&#9888; Routing Changed:</strong> The approval routing for this request has been recalculated for the new branch.</div>
+        <div class="details">
+            <div class="detail-row"><span class="label">Request Number:</span> {$safeRequestNumber}</div>
+            <div class="detail-row"><span class="label">Previous Branch:</span> {$safeOldBranch}</div>
+            <div class="detail-row"><span class="label">New Branch:</span> {$safeNewBranch}</div>
+            <div class="detail-row"><span class="label">Estimated Value:</span> {$safeValue}</div>
+            <div class="detail-row"><span class="label">Next Approval Stage:</span> {$safeNextRole}</div>
+            <div class="detail-row"><span class="label">Updated By:</span> {$safeActor}</div>
+        </div>
+        <p><a href="{$appUrl}{$viewUrl}" class="button">View Request</a></p>
+        <p style="margin-top: 20px; font-size: 12px; color: #777;">This is an automated notification from the Procurement Request Management System.</p>
+    </div>
+    <div class="footer"><p>&copy; Government Chemist &middot; PIAMS &middot; Confidential</p></div>
+</div></body></html>
+HTML;
+
+        $recipients = [];
+
+        $requestorId = (int)($request['created_by'] ?? 0);
+        if ($requestorId > 0) {
+            $recipients[$requestorId] = [
+                'user_id' => $requestorId,
+                'email'   => getUserEmail($requestorId),
+                'is_approver' => false,
+            ];
+        }
+
+        $approverRoles = array_values(array_unique(array_filter([$nextRole, $previousRole])));
+        foreach ($approverRoles as $role) {
+            foreach (getUsersByRole((string)$role) as $user) {
+                $uid = (int)($user['user_id'] ?? 0);
+                if ($uid <= 0) continue;
+                $recipients[$uid] = [
+                    'user_id'     => $uid,
+                    'email'       => $user['email'] ?? null,
+                    'is_approver' => true,
+                ];
+            }
+        }
+
+        $sent = false;
+        foreach ($recipients as $recipient) {
+            if (!empty($recipient['email'])) {
+                $sent = sendMail($recipient['email'], $subject, $html) || $sent;
+            }
+
+            $isApprover = !empty($recipient['is_approver']);
+            NotificationService::createNotification(
+                (int)$recipient['user_id'],
+                $isApprover ? NotificationService::TYPE_APPROVAL_NEEDED : NotificationService::TYPE_SUBMISSION,
+                [
+                    'title'          => "Branch Updated: {$request['request_number']}",
+                    'body'           => "Branch changed from {$oldBranchName} to {$newBranchName} by {$actorName}."
+                        . ($nextRole ? " Next approval stage: {$nextRole}." : ''),
+                    'request_id'     => $requestId,
+                    'request_ref'    => $request['request_number'],
+                    'action_url'     => $isApprover ? "/procurement/approve.php?id={$requestId}" : $viewUrl,
+                    'stage'          => $nextRole,
+                    'requestor_name' => $request['requestor_name'] ?? null,
+                    'priority'       => $isApprover ? 'high' : 'normal',
+                ]
+            );
+        }
+
+        return $sent;
+    } catch (Throwable $e) {
+        error_log("notifyRequestBranchChanged failed for request_id={$requestId}: {$e->getMessage()}");
+        return false;
+    }
+}
+
+/**
+ * Notify stakeholders that Finance/Accounts has certified (or denied) fund
+ * availability for a request.
+ *
+ * Recipients:
+ *   - the requestor (always);
+ *   - Procurement Officers, but only when the request has reached a status
+ *     procurement is allowed to see (same gating as the other procurement
+ *     notifications).
+ *
+ * @param int    $requestId      Procurement request ID
+ * @param bool   $fundsAvailable Whether funds were certified as available
+ * @param string $remarks        Optional remarks captured with the decision
+ * @param string $actorName      Officer who recorded the verification
+ */
+function notifyFundVerificationRecorded(
+    int $requestId,
+    bool $fundsAvailable,
+    string $remarks = '',
+    string $actorName = 'Finance'
+): bool {
+    if (!notificationsEnabled()) return false;
+
+    global $pdo;
+    try {
+        $stmt = $pdo->prepare("
+            SELECT pr.request_number, pr.estimated_value, pr.currency, pr.request_type,
+                   pr.created_by, b.branch_name, u.full_name AS requestor_name
+            FROM procurement_requests pr
+            LEFT JOIN branches b ON pr.branch_id = b.branch_id
+            LEFT JOIN users u ON pr.created_by = u.user_id
+            WHERE pr.request_id = ?
+        ");
+        $stmt->execute([$requestId]);
+        $request = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$request) return false;
+
+        $appUrl         = getAppUrl();
+        $currency       = normalizeCurrency($request['currency'] ?? 'JMD');
+        $estimatedValue = $currency . ' ' . number_format((float)($request['estimated_value'] ?? 0), 2);
+        $viewUrl        = "/procurement/view.php?id={$requestId}";
+        $outcome        = $fundsAvailable ? 'Funds Available' : 'Funds Not Available';
+        $statusColor    = $fundsAvailable ? '#198754' : '#dc3545';
+
+        $safeRequestNumber = he($request['request_number']);
+        $safeBranchName    = he($request['branch_name'] ?? 'N/A');
+        $safeOutcome       = he($outcome);
+        $safeActor         = he($actorName);
+        $safeValue         = he($estimatedValue);
+        $safeRemarks       = $remarks !== '' ? he($remarks) : 'None provided.';
+
+        $subject = "Fund Verification {$outcome}: {$request['request_number']}";
+        $html = <<<HTML
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<style>
+    body { font-family: Arial, sans-serif; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
+    .header { background: linear-gradient(90deg, #0b5e2b, #c9a227); color: white; padding: 20px; }
+    .content { padding: 20px; }
+    .status-box { background: {$statusColor}; color: white; padding: 15px; border-radius: 5px; text-align: center; margin: 15px 0; font-size: 18px; font-weight: bold; }
+    .details { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; }
+    .detail-row { margin: 8px 0; }
+    .label { font-weight: bold; color: #555; }
+    .button { background: #0b5e2b; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; margin-top: 15px; }
+    .footer { background: #f8f9fa; padding: 15px; text-align: center; font-size: 12px; color: #777; border-top: 1px solid #ddd; }
+</style></head><body>
+<div class="container">
+    <div class="header">
+        <h2 style="margin: 0;">Fund Verification Recorded</h2>
+        <p style="margin: 5px 0 0 0;">Government Chemist - PIAMS</p>
+    </div>
+    <div class="content">
+        <div class="status-box">{$safeOutcome}</div>
+        <div class="details">
+            <div class="detail-row"><span class="label">Request Number:</span> {$safeRequestNumber}</div>
+            <div class="detail-row"><span class="label">Branch:</span> {$safeBranchName}</div>
+            <div class="detail-row"><span class="label">Estimated Value:</span> {$safeValue}</div>
+            <div class="detail-row"><span class="label">Verified By:</span> {$safeActor}</div>
+            <div class="detail-row"><span class="label">Remarks:</span> {$safeRemarks}</div>
+        </div>
+        <p><a href="{$appUrl}{$viewUrl}" class="button">View Request</a></p>
+        <p style="margin-top: 20px; font-size: 12px; color: #777;">This is an automated notification from the Procurement Request Management System.</p>
+    </div>
+    <div class="footer"><p>&copy; Government Chemist &middot; PIAMS &middot; Confidential</p></div>
+</div></body></html>
+HTML;
+
+        $recipients = [];
+
+        $requestorId = (int)($request['created_by'] ?? 0);
+        if ($requestorId > 0) {
+            $recipients[$requestorId] = [
+                'user_id' => $requestorId,
+                'email'   => getUserEmail($requestorId),
+            ];
+        }
+
+        if (shouldSendProcurementNotificationForRequest($requestId)) {
+            foreach (getUsersByRole('Procurement Officer') as $officer) {
+                $officerId = (int)($officer['user_id'] ?? 0);
+                if ($officerId <= 0) continue;
+                $recipients[$officerId] = [
+                    'user_id' => $officerId,
+                    'email'   => $officer['email'] ?? null,
+                ];
+            }
+        }
+
+        $body = "Fund verification recorded by {$actorName}: {$outcome}."
+            . ($remarks !== '' ? " Remarks: {$remarks}" : '');
+
+        $sent = false;
+        foreach ($recipients as $recipient) {
+            if (!empty($recipient['email'])) {
+                $sent = sendMail($recipient['email'], $subject, $html) || $sent;
+            }
+
+            NotificationService::createNotification(
+                (int)$recipient['user_id'],
+                NotificationService::TYPE_FINANCE_ACTION,
+                [
+                    'title'          => "Fund Verification: {$request['request_number']}",
+                    'body'           => $body,
+                    'request_id'     => $requestId,
+                    'request_ref'    => $request['request_number'],
+                    'action_url'     => $viewUrl,
+                    'stage'          => 'FUNDS_VERIFIED',
+                    'requestor_name' => $request['requestor_name'] ?? null,
+                    'priority'       => $fundsAvailable ? 'normal' : 'high',
+                ]
+            );
+        }
+
+        return $sent;
+    } catch (Throwable $e) {
+        error_log("notifyFundVerificationRecorded failed for request_id={$requestId}: {$e->getMessage()}");
+        return false;
+    }
+}
+
+/**
+ * Notify stakeholders that Procurement has started working a request
+ * (status moved to PROCUREMENT_STAGE).
+ *
+ * @param int    $requestId Procurement request ID
+ * @param string $actorName Officer who started the procurement stage
+ */
+function notifyProcurementStageStarted(int $requestId, string $actorName = 'Procurement'): bool {
+    if (!notificationsEnabled()) return false;
+
+    global $pdo;
+    try {
+        $stmt = $pdo->prepare("
+            SELECT pr.request_number, pr.estimated_value, pr.currency,
+                   pr.created_by, b.branch_name, u.full_name AS requestor_name
+            FROM procurement_requests pr
+            LEFT JOIN branches b ON pr.branch_id = b.branch_id
+            LEFT JOIN users u ON pr.created_by = u.user_id
+            WHERE pr.request_id = ?
+        ");
+        $stmt->execute([$requestId]);
+        $request = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$request) return false;
+
+        $viewUrl     = "/procurement/view.php?id={$requestId}";
+        $requestorId = (int)($request['created_by'] ?? 0);
+
+        $sent = notifyRequestFinalized($requestId, 'PROCUREMENT_STAGE');
+
+        if ($requestorId > 0) {
+            NotificationService::createNotification(
+                $requestorId,
+                NotificationService::TYPE_SUBMISSION,
+                [
+                    'title'          => "Procurement Started: {$request['request_number']}",
+                    'body'           => "{$actorName} has started the procurement stage for this request.",
+                    'request_id'     => $requestId,
+                    'request_ref'    => $request['request_number'],
+                    'action_url'     => $viewUrl,
+                    'stage'          => 'PROCUREMENT_STAGE',
+                    'requestor_name' => $request['requestor_name'] ?? null,
+                    'priority'       => 'normal',
+                ]
+            );
+        }
+
+        foreach (getUsersByRole('Procurement Officer') as $officer) {
+            $officerId = (int)($officer['user_id'] ?? 0);
+            if ($officerId <= 0) continue;
+            NotificationService::createNotification(
+                $officerId,
+                NotificationService::TYPE_APPROVAL_NEEDED,
+                [
+                    'title'          => "Action Required: {$request['request_number']}",
+                    'body'           => 'Request moved to the procurement stage. Create the RFQ to continue.',
+                    'request_id'     => $requestId,
+                    'request_ref'    => $request['request_number'],
+                    'action_url'     => "/rfq/create.php?request_id={$requestId}",
+                    'stage'          => 'PROCUREMENT_STAGE',
+                    'requestor_name' => $request['requestor_name'] ?? null,
+                    'priority'       => 'high',
+                ]
+            );
+        }
+
+        return $sent;
+    } catch (Throwable $e) {
+        error_log("notifyProcurementStageStarted failed for request_id={$requestId}: {$e->getMessage()}");
+        return false;
+    }
+}

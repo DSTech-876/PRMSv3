@@ -9,7 +9,13 @@ require_once $_SERVER['DOCUMENT_ROOT'].'/includes/header.php';
 ensureApprovalChainsExist($pdo);
 
 /* ═════════════════════════════════════════════════════════
-   Get HRM&A Branch Approvals (All amounts - Director HRM&A is sole approver)
+   Requests awaiting Director HRM&A sign-off.
+
+   This covers every stage the Director owns in the approval
+   chain — not only freshly SUBMITTED requests. Over-threshold
+   requests that were approved by the HOD first arrive here in
+   HOD_APPROVED status, so the queue is driven by the pending
+   request_approvals row rather than by request status/branch.
 ═════════════════════════════════════════════════════════ */
 
 $stmt = $pdo->prepare("
@@ -18,16 +24,17 @@ $stmt = $pdo->prepare("
         pr.request_number,
         pr.estimated_value,
         pr.currency,
+        pr.status,
         pr.created_at,
         b.branch_name,
         ra.role as required_role
-    FROM procurement_requests pr
+    FROM request_approvals ra
+    JOIN procurement_requests pr ON pr.request_id = ra.request_id
     LEFT JOIN branches b ON pr.branch_id = b.branch_id
-    LEFT JOIN request_approvals ra ON pr.request_id = ra.request_id AND ra.status = 'pending'
-    WHERE UPPER(pr.status) = 'SUBMITTED'
-    AND b.branch_id = 5  /* HRM&A Branch — Director HRM&A is the designated approver */
-    AND ra.role = 'Director HRM&A'
-    AND ra.status = 'pending'
+    WHERE ra.entity_type = 'REQUEST'
+      AND ra.role = 'Director HRM&A'
+      AND ra.status = 'pending'
+      AND UPPER(pr.status) NOT IN ('DRAFT','CANCELLED','PAUSED','DECLINED','COMPLETED','AWARDED')
     ORDER BY pr.created_at ASC
 ");
 $stmt->execute();
@@ -48,24 +55,25 @@ $branchPending = count($branchRequests);
 
         <!-- KPI Card -->
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;">
-            <h6 style="margin: 0; font-weight: 600; opacity: 0.9;">📊 HRM&A Branch Approvals</h6>
+            <h6 style="margin: 0; font-weight: 600; opacity: 0.9;">📊 Approvals Awaiting You</h6>
             <h3 style="margin: 0.5rem 0 0 0; font-size: 2.5rem; font-weight: 700;"><?= $branchPending ?></h3>
-            <small style="opacity: 0.9;">HRM&A Branch Pending Approvals</small>
+            <small style="opacity: 0.9;">Requests Pending Your Approval</small>
         </div>
 
-        <!-- HRM&A Branch Specific Approvals -->
+        <!-- Director HRM&A Approvals -->
         <?php if ($branchPending > 0): ?>
         <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1.5rem;">
             <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-                <h6 style="margin: 0; font-size: 1rem; font-weight: 700; color: #333;">📋 HRM&A Branch Approvals <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;"><?= $branchPending ?></span></h6>
+                <h6 style="margin: 0; font-size: 1rem; font-weight: 700; color: #333;">📋 Approvals Requiring Your Action <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;"><?= $branchPending ?></span></h6>
             </div>
-            <p style="color: #666; font-size: 0.875rem; margin-bottom: 1rem;"><i class="bi bi-info-circle"></i> These are approvals for HRM&A branch requests. As Director HRM&A, you are the sole approver for this branch.</p>
+            <p style="color: #666; font-size: 0.875rem; margin-bottom: 1rem;"><i class="bi bi-info-circle"></i> These requests are waiting on your approval stage, including over-threshold requests already approved by the HOD.</p>
             <div style="overflow-x: auto;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
                     <thead style="background: #f5f5f5;">
                         <tr>
                             <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Request #</th>
                             <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Branch</th>
+                            <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Stage</th>
                             <th style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Value</th>
                             <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Date Submitted</th>
                             <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Actions</th>
@@ -76,6 +84,7 @@ $branchPending = count($branchRequests);
                         <tr style="border-bottom: 1px solid #f0f0f0;">
                             <td style="padding: 0.75rem 1rem; font-weight: 600; color: #333;"><?= htmlspecialchars($row['request_number']) ?></td>
                             <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($row['branch_name'] ?? 'N/A') ?></td>
+                            <td style="padding: 0.75rem 1rem;"><?= statusBadge($row['status']) ?></td>
                             <td style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333;"><?= htmlspecialchars(normalizeCurrency($row['currency'] ?? 'JMD')) ?> <?= number_format((float)$row['estimated_value'], 2) ?></td>
                             <td style="padding: 0.75rem 1rem; color: #999; font-size: 0.8rem;"><?= date('d M Y', strtotime($row['created_at'])) ?></td>
                             <td style="padding: 0.75rem 1rem; text-align: center;">

@@ -78,6 +78,10 @@ $itemStmt = $pdo->prepare("
 $itemStmt->execute([$id]);
 $items = $itemStmt->fetchAll(PDO::FETCH_ASSOC);
 
+/* ===== Branch options (branch may be re-assigned while editing) ===== */
+$branchOptions = $pdo->query("SELECT branch_id, branch_name FROM branches ORDER BY branch_name ASC")
+    ->fetchAll(PDO::FETCH_ASSOC);
+
 /* ===== Handle form submission ===== */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireCsrfToken('/procurement/edit.php?id=' . $id);
@@ -94,6 +98,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $description = trim($_POST['description'] ?? '');
+
+    /* ===== Branch change (re-routes the approval chain) ===== */
+    $currentBranchId = (int)($request['branch_id'] ?? 0);
+    $newBranchId = $currentBranchId;
+    if (array_key_exists('branch_id', $_POST)) {
+        $newBranchId = (int)$_POST['branch_id'];
+        if ($newBranchId <= 0 || !in_array($newBranchId, array_map('intval', array_column($branchOptions, 'branch_id')), true)) {
+            pop('Please select a valid branch.', '/procurement/edit.php?id='.$id, POP_DEFAULT_DELAY_MS, 'error');
+            exit;
+        }
+    }
+    $branchChanged = $newBranchId !== $currentBranchId;
 
     if (empty($_POST['items']) || !is_array($_POST['items'])) {
         pop('At least one item is required', '/procurement/edit.php?id='.$id, POP_DEFAULT_DELAY_MS, 'error');
@@ -119,16 +135,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    $branchNames = array_column($branchOptions, 'branch_name', 'branch_id');
+    $oldBranchName = (string)($branchNames[$currentBranchId] ?? 'N/A');
+    $newBranchName = (string)($branchNames[$newBranchId] ?? 'N/A');
+    $branchChangeNotification = null;
+
     $pdo->beginTransaction();
 
     try {
-        // Update header timestamp, estimated value, and description
+        // Update header timestamp, estimated value, description and branch
         $stmt = $pdo->prepare("
             UPDATE procurement_requests
-            SET updated_at = NOW(), estimated_value = ?, description = ?
+            SET updated_at = NOW(), estimated_value = ?, description = ?, branch_id = ?
             WHERE request_id = ?
         ");
-        $stmt->execute([$estimatedValue, $description, $id]);
+        $stmt->execute([$estimatedValue, $description, $newBranchId, $id]);
+
+        if ($branchChanged) {
+            // Identify the approver role that currently owns the outstanding stage
+            $previousRoleStmt = $pdo->prepare("
+                SELECT role
+                FROM request_approvals
+                WHERE request_id = ?
+                  AND entity_type = 'REQUEST'
+                  AND status = 'pending'
+                ORDER BY stage_order ASC, id ASC
+                LIMIT 1
+            ");
+            $previousRoleStmt->execute([$id]);
+            $previousApproverRole = $previousRoleStmt->fetchColumn() ?: null;
+
+            $nextApproverRole = null;
+            $isDraft = strtoupper((string)$request['status']) === 'DRAFT';
+            if (!$isDraft) {
+                $rebuilt = rebuildPendingApprovalChain(
+                    $pdo,
+                    (int)$id,
+                    (string)($request['request_type'] ?? 'REGULAR'),
+                    $estimatedValue,
+                    $newBranchId
+                );
+                $nextApproverRole = $rebuilt['next_role'];
+
+                logAudit(
+                    $pdo,
+                    'procurement_requests',
+                    $id,
+                    'APPROVAL_CHAIN_REROUTED',
+                    'Branch changed from ' . $oldBranchName . ' to ' . $newBranchName
+                        . '. Outstanding approvals: ' . (implode(' → ', $rebuilt['pending_roles']) ?: 'none')
+                );
+            }
+
+            logAudit(
+                $pdo,
+                'procurement_requests',
+                $id,
+                'BRANCH_CHANGE',
+                'Branch changed from ' . $oldBranchName . ' to ' . $newBranchName
+                    . ' by ' . ($_SESSION['full_name'] ?? 'System')
+            );
+            // Drafts have no approval chain or stakeholders to alert yet.
+            $branchChangeNotification = $isDraft ? null : [
+                'old_branch'    => $oldBranchName,
+                'new_branch'    => $newBranchName,
+                'next_role'     => $nextApproverRole,
+                'previous_role' => $previousApproverRole ?: null,
+            ];
+        }
 
 
 /* ===== Capture OLD items for audit ===== */
@@ -233,6 +307,17 @@ $audit->execute([
         }
 
         $pdo->commit();
+        if ($branchChangeNotification !== null) {
+            require_once $_SERVER['DOCUMENT_ROOT'] . "/config/notifications.php";
+            notifyRequestBranchChanged(
+                (int)$id,
+                $branchChangeNotification['old_branch'],
+                $branchChangeNotification['new_branch'],
+                $_SESSION['full_name'] ?? 'System',
+                $branchChangeNotification['next_role'],
+                $branchChangeNotification['previous_role']
+            );
+        }
         if ($overrideService !== null && $pendingWorkflowOverrideStatus !== null) {
             $overrideService->sendStatusNotifications((int)$id, $pendingWorkflowOverrideStatus);
         }
@@ -319,14 +404,15 @@ require_once $_SERVER['DOCUMENT_ROOT'] . "/includes/header.php";
                 </div>
                 <div class="col-md-3">
                     <small class="text-muted d-block">Branch</small>
-                    <h6 class="mb-0 fw-semibold">
-                        <?php 
-                            $branchStmt = $pdo->prepare("SELECT branch_name FROM branches WHERE branch_id = ?");
-                            $branchStmt->execute([$request['branch_id']]);
-                            $branch = $branchStmt->fetch(PDO::FETCH_ASSOC);
-                            echo htmlspecialchars($branch['branch_name'] ?? 'N/A');
-                        ?>
-                    </h6>
+                    <select name="branch_id" id="branch_id_edit" class="form-select form-select-sm" form="editForm" required>
+                        <?php foreach ($branchOptions as $branchOption): ?>
+                            <option value="<?= (int)$branchOption['branch_id'] ?>"
+                                <?= (int)$branchOption['branch_id'] === (int)($request['branch_id'] ?? 0) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($branchOption['branch_name']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted">Changing the branch re-routes pending approvals and notifies the approvers.</small>
                 </div>
                 <div class="col-md-3">
                     <small class="text-muted d-block">Total Items</small>

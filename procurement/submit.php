@@ -157,20 +157,19 @@ try {
 ================================ */
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/notifications.php';
 
-// Send notification to first approver with action required
+// Send notification to every active holder of the first approver role
 if ($firstApprovalRole) {
-    $approverStmt = $pdo->prepare('
-        SELECT u.user_id
-        FROM users u
-        INNER JOIN roles r ON u.role_id = r.id
-        WHERE r.name = ? AND u.is_active = 1
-        LIMIT 1
-    ');
-    $approverStmt->execute([$firstApprovalRole]);
-    $approver = $approverStmt->fetch(PDO::FETCH_ASSOC);
+    $approvers = getUsersByRole($firstApprovalRole);
 
-    if ($approver) {
-        notifyApprovalNeeded($request_id, $firstApprovalStage, $approver['user_id']);
+    if (empty($approvers)) {
+        error_log('submit.php: no active users found for first approver role ' . $firstApprovalRole . ' (request_id=' . $request_id . ')');
+    }
+
+    foreach ($approvers as $approver) {
+        if (empty($approver['user_id'])) {
+            continue;
+        }
+        notifyApprovalNeeded($request_id, $firstApprovalStage, (int)$approver['user_id']);
     }
 }
 

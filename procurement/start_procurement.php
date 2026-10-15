@@ -43,10 +43,22 @@ try {
         WHERE request_id = ?
     ");
     $stmt->execute([$id]);
+
+    logProcurementVisibilityGranted($pdo, $id, 'PROCUREMENT_STAGE', (string)($request['status'] ?? ''));
+
+    $actorName = (string)($_SESSION['full_name'] ?? 'Unknown');
+    $note = 'Procurement stage started by ' . $actorName
+        . ' — status changed from ' . (string)($request['status'] ?? 'UNKNOWN') . ' to PROCUREMENT_STAGE.';
+    logAudit($pdo, 'procurement_requests', $id, 'STATUS_CHANGE', $note);
+    logRequestTimeline($pdo, $id, 'PROCUREMENT_STAGE', $note);
 } catch (Throwable $e) {
     pop(extractDbMessage($e), '/procurement/view.php?id=' . $id, POP_DEFAULT_DELAY_MS, 'error');
     exit;
 }
+
+/* Alert the requestor and procurement team that the procurement stage is active */
+require_once $_SERVER['DOCUMENT_ROOT'].'/config/notifications.php';
+notifyProcurementStageStarted($id, (string)($_SESSION['full_name'] ?? 'Procurement'));
 
 header("Location: view.php?id=".$id);
 exit;
