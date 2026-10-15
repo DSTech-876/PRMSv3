@@ -37,6 +37,8 @@ if (!in_array((string)($_SESSION['role_name'] ?? ''), ['Procurement Officer', 'A
 enforceTransition($request, 'PROCUREMENT_STAGE');
 
 try {
+    $pdo->beginTransaction();
+
     $stmt = $pdo->prepare("
         UPDATE procurement_requests
         SET status = 'PROCUREMENT_STAGE'
@@ -51,7 +53,12 @@ try {
         . ' — status changed from ' . (string)($request['status'] ?? 'UNKNOWN') . ' to PROCUREMENT_STAGE.';
     logAudit($pdo, 'procurement_requests', $id, 'STATUS_CHANGE', $note);
     logRequestTimeline($pdo, $id, 'PROCUREMENT_STAGE', $note);
+
+    $pdo->commit();
 } catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     pop(extractDbMessage($e), '/procurement/view.php?id=' . $id, POP_DEFAULT_DELAY_MS, 'error');
     exit;
 }

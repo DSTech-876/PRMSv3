@@ -5002,7 +5002,6 @@ function notifyPettyCashRequestorLifecycle(int $requestId, string $event): bool
     }
 }
 
-?>
 /**
  * Notify stakeholders that a request has been moved to a different branch.
  *
