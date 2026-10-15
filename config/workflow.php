@@ -1936,6 +1936,80 @@ function createApprovalChain(
 }
 
 /**
+ * Rebuild only the *outstanding* part of an approval chain.
+ *
+ * Used when a request attribute that drives routing (currently the branch)
+ * changes while the request is already moving through its approval chain.
+ * Stages that were already approved/rejected are preserved; the pending
+ * stages are replaced with the roles required by the recalculated chain
+ * that have not yet signed off.
+ *
+ * @return array{chain: string[], pending_roles: string[], next_role: ?string}
+ */
+function rebuildPendingApprovalChain(
+    PDO $pdo,
+    int $requestId,
+    string $requestType,
+    float $estimatedValue,
+    ?int $branchId = null
+): array {
+    if ($requestId <= 0) {
+        throw new InvalidArgumentException('Invalid request ID');
+    }
+
+    $completedStmt = $pdo->prepare("
+        SELECT role, stage_order
+        FROM request_approvals
+        WHERE request_id = ?
+          AND entity_type = 'REQUEST'
+          AND status <> 'pending'
+        ORDER BY stage_order ASC, id ASC
+    ");
+    $completedStmt->execute([$requestId]);
+    $completedRows = $completedStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $completedRoles = [];
+    $maxStageOrder = 0;
+    foreach ($completedRows as $row) {
+        $completedRoles[] = strtolower(trim((string)$row['role']));
+        $maxStageOrder = max($maxStageOrder, (int)$row['stage_order']);
+    }
+
+    $chain = getApprovalChain($requestType, $estimatedValue, $branchId, $pdo);
+
+    $pendingRoles = [];
+    foreach ($chain as $role) {
+        if (!in_array(strtolower(trim($role)), $completedRoles, true)) {
+            $pendingRoles[] = $role;
+        }
+    }
+
+    $pdo->prepare("
+        DELETE FROM request_approvals
+        WHERE request_id = ?
+          AND entity_type = 'REQUEST'
+          AND status = 'pending'
+    ")->execute([$requestId]);
+
+    $insert = $pdo->prepare("
+        INSERT INTO request_approvals
+        (entity_type, entity_id, request_id, role, stage_order, status)
+        VALUES ('REQUEST', ?, ?, ?, ?, 'pending')
+    ");
+    $stageOrder = $maxStageOrder;
+    foreach ($pendingRoles as $role) {
+        $stageOrder++;
+        $insert->execute([$requestId, $requestId, $role, $stageOrder]);
+    }
+
+    return [
+        'chain'         => $chain,
+        'pending_roles' => $pendingRoles,
+        'next_role'     => $pendingRoles[0] ?? null,
+    ];
+}
+
+/**
  * Determine the appropriate first approval stage name based on approval chain.
  * Used by workflow to set request status after approval chain creation.
  *

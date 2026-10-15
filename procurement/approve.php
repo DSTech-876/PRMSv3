@@ -220,6 +220,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             notifyRequestFinalized($id, $nextStatus);
         }
+        /* Keep procurement informed of approval progress (parity with the
+           HOD / GC / Finance approval endpoints) */
+        notifyProcurementOfApproval($id, $nextStatus);
         if ($nextStatus === 'RFQ_LETTER_AVAILABLE') {
             notifyProcurementRFQReady($id);
         }
