@@ -42,6 +42,8 @@ if (!in_array(strtoupper($request['status']), $allowedStatuses)) {
 
 /* Handle POST - verify funds */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken('/procurement/verify_funds.php?id=' . $request_id);
+
     try {
         $fundsAvailable = (int)($_POST['funds_available'] ?? 0);
         $remarks = trim($_POST['remarks'] ?? '');
@@ -66,6 +68,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         logRequestTimeline($pdo, $request_id, $action, $note);
 
         $pdo->commit();
+
+        /* Inform the requestor (and procurement, when visible) of the outcome */
+        require_once $_SERVER['DOCUMENT_ROOT'] . "/config/notifications.php";
+        notifyFundVerificationRecorded(
+            $request_id,
+            (bool)$fundsAvailable,
+            $remarks,
+            $_SESSION['full_name'] ?? ($_SESSION['role_name'] ?? 'Finance')
+        );
 
         if ($fundsAvailable) {
             modalPop(
@@ -191,6 +202,7 @@ require_once $_SERVER['DOCUMENT_ROOT'] . "/includes/header.php";
         </div>
         <div class="card-body">
             <form method="post">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(ensureCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                 <div class="mb-4">
                     <label class="form-label fw-bold">Are funds available for this request?</label>
                     <div class="d-flex gap-3">
