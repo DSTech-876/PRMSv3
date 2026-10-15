@@ -168,11 +168,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $nextApproverRole = null;
             $isDraft = strtoupper((string)$request['status']) === 'DRAFT';
             if (!$isDraft) {
+                // Convert to JMD equivalent for threshold comparison (mirrors procurement/submit.php)
+                $thresholdValue = $estimatedValue;
+                $requestCurrency = strtoupper(trim((string)($request['currency'] ?? 'JMD')));
+                if ($requestCurrency === 'USD') {
+                    $usdRate = (float)($request['usd_rate'] ?? 0);
+                    if ($usdRate <= 0) {
+                        $rateStmt = $pdo->prepare("SELECT config_value FROM system_config WHERE config_key = 'usd_to_jmd_rate'");
+                        $rateStmt->execute();
+                        $usdRate = (float)($rateStmt->fetchColumn() ?: 155.00);
+                    }
+                    $thresholdValue = $estimatedValue * $usdRate;
+                }
+
                 $rebuilt = rebuildPendingApprovalChain(
                     $pdo,
                     (int)$id,
                     (string)($request['request_type'] ?? 'REGULAR'),
-                    $estimatedValue,
+                    $thresholdValue,
                     $newBranchId
                 );
                 $nextApproverRole = $rebuilt['next_role'];
