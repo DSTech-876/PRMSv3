@@ -39,7 +39,10 @@ function sendMail(string $to, string $subject, string $html): bool
         $mail->SMTPAuth   = true;
         $mail->Username   = MAIL_USER;
         $mail->Password   = MAIL_PASS;
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        // Port 465 uses implicit TLS (SMTPS); other ports (e.g. 587/25) use STARTTLS.
+        $mail->SMTPSecure = (int) MAIL_PORT === 465
+            ? PHPMailer::ENCRYPTION_SMTPS
+            : PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = MAIL_PORT;
 
         $mail->setFrom(MAIL_FROM, MAIL_FROM_NAME);
