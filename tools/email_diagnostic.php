@@ -193,7 +193,12 @@ HTML;
                     echo "Check your spam/junk folder if not received.";
                 } else {
                     echo "<span class='status error'>✗ EMAIL SEND FAILED</span><br><br>";
-                    echo "Check PHP error logs for details: <br>";
+                    $lastError = function_exists('getLastMailError') ? getLastMailError() : null;
+                    if ($lastError) {
+                        echo "<strong>Reason:</strong><br>";
+                        echo "<div class='value' style='color:#dc3545;'>" . htmlspecialchars($lastError) . "</div><br>";
+                    }
+                    echo "Check PHP error logs for more details: <br>";
                     echo "<code>tail -50 /path/to/php-error.log | grep MAIL</code>";
                 }
                 echo "</div>";
