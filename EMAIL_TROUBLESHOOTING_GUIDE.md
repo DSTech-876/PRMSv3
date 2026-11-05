@@ -178,6 +178,21 @@ If using Gmail:
 - ✓ For Gmail, ensure using App Password (not regular password)
 - ✓ Check user account is active and not locked
 
+### "SMTP Error: Could not authenticate. SMTP server error: QUIT command failed"
+This is a single failure, not two: the login was rejected and the `QUIT`
+notice is just the aborted connection being torn down. `sendMail()` now
+appends a `How to fix:` hint to this log line.
+
+- ✓ Re-check `MAIL_USER` / `MAIL_PASS` in `.env`
+- ✓ For Gmail/Workspace, `MAIL_PASS` must be a 16-character **App Password**
+  generated on an account with 2-Step Verification enabled — the normal
+  account password is always rejected
+- ✓ Spaces in a Gmail App Password (`abcd efgh ijkl mnop`) are display-only
+  and are stripped automatically; surrounding whitespace in `.env` values is
+  also trimmed
+- ✓ If the value contains `#` or spaces, quote it: `MAIL_PASS="..."`
+- ✓ Confirm `MAIL_USER` is the full mailbox address, not just the local part
+
 ### "Email appears to send but not received"
 - ✓ Check email logs: `tail -f /path/to/php-error.log`
 - ✓ Check spam/junk folder
