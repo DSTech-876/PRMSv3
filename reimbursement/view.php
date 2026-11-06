@@ -611,8 +611,9 @@ $csrfToken = ensureCsrfToken();
           <?php endif; ?>
           
           <?php 
-          // Finance approval actions
-          $isFinanceApprover = in_array($_SESSION['role_name'] ?? '', ['Finance Officer', 'Admin', 'SuperAdmin'], true);
+          // Finance approval actions (Finance Officer or the supervising
+          // Director Accounts & Finance may act on finance-stage approvals).
+          $isFinanceApprover = in_array($_SESSION['role_name'] ?? '', ['Finance Officer', 'Director Accounts & Finance', 'Admin', 'SuperAdmin'], true);
           $canApprove = $request['status'] === 'SUBMITTED' && $isFinanceApprover;
           // Final approval once the invoice has cleared verification (or the
           // request bypassed the invoice stages while funds were verified).
@@ -674,8 +675,9 @@ $csrfToken = ensureCsrfToken();
           <?php endif; ?>
 
           <?php 
-          // Finance marks payment as disbursed/reimbursed
-          $canMarkReimbursed = ($request['status'] === 'APPROVED') && $isFinanceApprover;
+          // Finance marks payment as disbursed/reimbursed (operational task —
+          // Finance Officer only; mark_reimbursed.php enforces this too).
+          $canMarkReimbursed = ($request['status'] === 'APPROVED') && ($_SESSION['role_name'] ?? '') === 'Finance Officer';
           ?>
           
           <?php if ($canMarkReimbursed): ?>

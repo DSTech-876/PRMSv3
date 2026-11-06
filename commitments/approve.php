@@ -102,7 +102,7 @@ $stmt = $pdo->prepare("
 $stmt->execute([$id]);
 $approval = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if (!$approval || $approval['role'] !== $current_role) {
+if (!$approval || !canApproveStage($current_role, $approval['role'], 0)) {
     modalPop("Unauthorized", "Not your approval stage.", "/commitments/view.php?commitment_id=".$id, "error");
     exit;
 }

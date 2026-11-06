@@ -362,11 +362,13 @@ class WorkflowService
      */
     public function canUserRevert(string $role, string $requestType): bool
     {
-        $allowedRoles = ['HOD', 'Branch Head', 'Director HRM&A', 'Deputy Government Chemist',
-                        'Government Chemist', 'Finance Officer', 'Procurement Officer',
-                        'Admin', 'SuperAdmin'];
-        
-        return in_array($role, $allowedRoles, true);
+        if (!function_exists('allowedRevertRoles')) {
+            require_once $_SERVER['DOCUMENT_ROOT'] . '/config/workflow.php';
+        }
+
+        // Delegate to the single source of truth in config/workflow.php so
+        // revert authorization stays in sync with canApproveStage()/role additions.
+        return in_array($role, allowedRevertRoles(), true);
     }
 
     /**

@@ -219,7 +219,7 @@ class AdminWorkflowOverrideService
             'RFQ_LETTER_AVAILABLE', 'QUOTE_REVIEW_PENDING', 'QUOTE_APPROVED', 'COMMITMENTS_PENDING', 'PO_PENDING' => ['Procurement Officer', 'Director Procurement'],
             'QUOTE_REQUESTOR_REVIEW_PENDING' => ['Requestor'],
             'QUOTE_REQUESTOR_REVIEW_APPROVED', 'QUOTE_BRANCH_HEAD_APPROVAL_PENDING' => ['Branch Head'],
-            'FUNDS_VERIFIED', 'COMMITMENT_APPROVED', 'INVOICE_RECEIVED' => ['Finance Officer'],
+            'FUNDS_VERIFIED', 'COMMITMENT_APPROVED', 'INVOICE_RECEIVED' => ['Finance Officer', 'Director Accounts & Finance'],
             default => [],
         };
 
