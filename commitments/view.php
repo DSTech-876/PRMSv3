@@ -4,6 +4,7 @@ require_once $_SERVER['DOCUMENT_ROOT'].'/config/page_guard.php';
 require_once $_SERVER['DOCUMENT_ROOT']."/config/db.php";
 require_once $_SERVER['DOCUMENT_ROOT']."/includes/header.php";
 require_once $_SERVER['DOCUMENT_ROOT']."/config/helper.php";
+require_once $_SERVER['DOCUMENT_ROOT']."/config/workflow.php";
 require_once $_SERVER['DOCUMENT_ROOT']."/config/policy.php";
 
 /* ================================
@@ -43,7 +44,7 @@ $canApproveNext = false;
 foreach ($approvalStages as $stage) {
     if ($stage['status'] === 'pending') {
         $nextPendingStage = $stage;
-        if ($stage['role'] === $currentUserRole) {
+        if (canApproveStage($currentUserRole, $stage['role'], 0)) {
             $canApproveNext = true;
         }
         break;
@@ -544,7 +545,7 @@ $existing_po_number = $existingPo ? $existingPo['po_number'] : null;
                                 ?>
                                 <?php if (
                                     has_permission('approve_commitment') &&
-                                    $suppNextRole === $currentUserRole
+                                    canApproveStage($currentUserRole, (string)$suppNextRole, 0)
                                 ): ?>
                                     <a href="/commitments/approve.php?id=<?= (int)$s['commitment_id'] ?>"
                                        class="btn btn-sm btn-outline-primary">

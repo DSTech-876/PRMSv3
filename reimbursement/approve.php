@@ -31,11 +31,11 @@ if (!in_array($action, ['approve', 'decline', 'return'])) {
 $userRole = $_SESSION['role_name'] ?? '';
 $approverRole = null;
 
-if (in_array($userRole, ['Finance Officer', 'Admin', 'SuperAdmin'], true)) {
+if (in_array($userRole, ['Finance Officer', 'Director Accounts & Finance', 'Admin', 'SuperAdmin'], true)) {
     $approverRole = 'Finance Officer';
 } else {
     pop(
-        "Only Finance Officers can approve reimbursement requests.",
+        "Only Finance Officers or the Director Accounts & Finance can approve reimbursement requests.",
         "/reimbursement/view.php?request_id=".$request_id,
         2000,
         "error"

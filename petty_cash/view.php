@@ -628,10 +628,14 @@ $csrfToken = ensureCsrfToken();
           <?php 
           // Role and permission checks
           $isFinanceOfficer = in_array($_SESSION['role_name'] ?? '', ['Finance Officer', 'Admin', 'SuperAdmin']);
+          // Approval (verify funds & authorize) may also be performed by the
+          // supervising Director Accounts & Finance; disbursement and
+          // reconciliation verification remain Finance Officer-only operational tasks.
+          $isFinanceApprover = in_array($_SESSION['role_name'] ?? '', ['Finance Officer', 'Director Accounts & Finance', 'Admin', 'SuperAdmin']);
           $isRequestor = (int)($_SESSION['user_id'] ?? 0) === (int)$request['created_by'];
           
           // Finance approval at submission stage
-          $canApprove = $request['status'] === 'SUBMITTED' && $isFinanceOfficer;
+          $canApprove = $request['status'] === 'SUBMITTED' && $isFinanceApprover;
           
           // Finance disbursement at FUNDS_VERIFIED or FINANCE_AUTHORIZED
           $canDisburse = in_array($request['status'], ['FUNDS_VERIFIED', 'FINANCE_AUTHORIZED']) && $isFinanceOfficer && $disbursement;

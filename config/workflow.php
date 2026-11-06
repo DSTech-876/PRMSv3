@@ -91,8 +91,8 @@ function allowedTransitions(): array {
  */
 function allowedRevertRoles(): array {
     return ['HOD', 'Branch Head', 'Director HRM&A', 'Deputy Government Chemist',
-            'Government Chemist', 'Finance Officer', 'Procurement Officer',
-            'Admin', 'SuperAdmin'];
+            'Government Chemist', 'Finance Officer', 'Director Accounts & Finance',
+            'Procurement Officer', 'Admin', 'SuperAdmin'];
 }
 
 /**
@@ -446,6 +446,9 @@ function canApproveStage(string $userRole, string $stageRole, float $estimatedVa
         'Director HRM&A' => ['HOD', 'Branch Head'],
         'Deputy Government Chemist' => ['Government Chemist'],
         'Government Chemist' => ['Deputy Government Chemist'],
+        // Director Accounts & Finance supervises Finance Officer and may act
+        // on finance-stage approvals (escalations, oversight, cover for absence).
+        'Finance Officer' => ['Director Accounts & Finance'],
     ];
 
     $equivalents = $equivalentRoles[$stageRole] ?? [];
