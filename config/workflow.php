@@ -559,7 +559,16 @@ function enforceTransition(array $request, string $nextStage) {
     $allowedRoles = stageOwner($nextStage);
     $userRole = $_SESSION['role_name'];
 
-    if (!in_array($userRole, $allowedRoles)) {
+    $estimatedValue = (float)($request['estimated_value'] ?? 0);
+    $authorized = false;
+    foreach ($allowedRoles as $stageRole) {
+        if (canApproveStage($userRole, $stageRole, $estimatedValue)) {
+            $authorized = true;
+            break;
+        }
+    }
+
+    if (!$authorized) {
         pop(
             'You are not authorized to perform this stage action.',
             '/dashboard/index.php',

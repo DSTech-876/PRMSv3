@@ -191,7 +191,7 @@ try {
         $request['status'],
         $newStatus,
         $_SESSION['user_id'],
-        $comments ?: (($action === 'approve') ? 'Approved by ' . $approverRole : 'Declined by ' . $approverRole)
+        $comments ?: (($action === 'approve') ? 'Approved by ' . $userRole : 'Declined by ' . $userRole)
     ]);
 
     /* ================================
@@ -201,7 +201,7 @@ try {
         $pdo,
         $request_id,
         $_SESSION['user_id'],
-        $approverRole,
+        $userRole,
         $action,
         $newStatus,
         $previousStatus,
@@ -209,7 +209,7 @@ try {
     );
 
     if ($isInvoiceBypassApproval) {
-        $bypassNote = 'Reimbursement invoice verification bypass approved by ' . $approverRole . '. Reason: ' . $comments;
+        $bypassNote = 'Reimbursement invoice verification bypass approved by ' . $userRole . '. Reason: ' . $comments;
         logAudit($pdo, 'procurement_requests', $request_id, 'REIMBURSEMENT_INVOICE_BYPASS_APPROVAL', $bypassNote);
         logRequestTimeline($pdo, $request_id, 'REIMBURSEMENT_INVOICE_BYPASS_APPROVAL', $bypassNote);
     }
