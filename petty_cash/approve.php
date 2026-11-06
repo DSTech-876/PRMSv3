@@ -146,10 +146,10 @@ try {
         VALUES (?, ?, ?, ?, ?)
     ");
     $historyNotes = $comments ?: ($action === 'approve' 
-        ? "Approved by {$approverRole}" 
+        ? "Approved by {$userRole}" 
         : ($action === 'return' 
-            ? "Returned for correction by {$approverRole}" 
-            : "Declined by {$approverRole}"));
+            ? "Returned for correction by {$userRole}" 
+            : "Declined by {$userRole}"));
     $historyInsert->execute([
         $request_id,
         $previousStatus,
@@ -219,7 +219,7 @@ try {
         $pdo,
         $request_id,
         $_SESSION['user_id'],
-        $approverRole,
+        $userRole,
         $action,
         $newStatus,
         $previousStatus,

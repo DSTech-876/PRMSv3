@@ -363,7 +363,7 @@ class WorkflowService
     public function canUserRevert(string $role, string $requestType): bool
     {
         if (!function_exists('allowedRevertRoles')) {
-            require_once $_SERVER['DOCUMENT_ROOT'] . '/config/workflow.php';
+            require_once dirname(__DIR__) . '/config/workflow.php';
         }
 
         // Delegate to the single source of truth in config/workflow.php so
