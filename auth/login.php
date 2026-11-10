@@ -53,7 +53,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     WHERE id = ?
 ");
 $stmt->execute([$user['role_id']]);
-$role = $stmt->fetchColumn();
+$role = canonicalizeRoleName($stmt->fetchColumn());
 
 $_SESSION['role_id'] = $user['role_id'];
 $_SESSION['role_name'] = $role;

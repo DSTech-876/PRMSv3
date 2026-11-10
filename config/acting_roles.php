@@ -62,9 +62,10 @@ function switchToActingRole(PDO $pdo, int $userId, int $actingRoleId): bool
     $previousRoleId = $_SESSION['role_id'];
 
     // Update session to the acting role
+    $actingRoleName = canonicalizeRoleName($row['role_name']);
     $_SESSION['role_id']   = $actingRoleId;
-    $_SESSION['role_name'] = $row['role_name'];
-    $_SESSION['role']      = $row['role_name'];
+    $_SESSION['role_name'] = $actingRoleName;
+    $_SESSION['role']      = $actingRoleName;
     $_SESSION['is_acting'] = true;
     $_SESSION['acting_assignment_id'] = $row['id'];
 

@@ -60,6 +60,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ================================ */
     if ($action === 'approve') {
 
+        // Authorization MUST be checked before any state-mutating side effect
+        // (including the approval-chain "repair" below). Checking it later
+        // let an unauthorized caller trigger ensureRequestApprovalChain()'s
+        // DB writes (and its APPROVAL_CHAIN_REPAIRED audit entry) even though
+        // the request was ultimately denied — leaving the audit/timeline
+        // showing activity with no corresponding status change (UI/DB desync).
+        $estimatedValueForAuth = (float)($request['estimated_value'] ?? 0);
+        $userRoleForAuth = $_SESSION['role_name'] ?? '';
+        if (!canApproveStage($userRoleForAuth, 'Finance Officer', $estimatedValueForAuth)) {
+            error_log(sprintf(
+                'approve_finance.php DENIED: user_id=%s role=%s request_id=%d required_role=Finance Officer status=%s',
+                $_SESSION['user_id'] ?? 'unknown',
+                $userRoleForAuth,
+                $id,
+                $request['status'] ?? ''
+            ));
+            pop(
+                'You are not authorized to perform this stage action.',
+                '/dashboard/index.php',
+                POP_DEFAULT_DELAY_MS,
+                'error'
+            );
+            exit;
+        }
+
         /* Get pending Finance Officer approval */
         $financeStmt = $pdo->prepare("
             SELECT id FROM request_approvals
@@ -86,7 +111,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Determine next status dynamically based on approval chain
         $nextStatus = getNextStatusAfterApproval($pdo, $id, 'Finance Officer');
-        
+
+        error_log(sprintf(
+            'approve_finance.php: user_id=%s role=%s request_id=%d from_status=%s to_status=%s',
+            $_SESSION['user_id'] ?? 'unknown',
+            $userRoleForAuth,
+            $id,
+            $request['status'] ?? '',
+            $nextStatus
+        ));
+
         enforceTransition($request, $nextStatus);
 
         try {
