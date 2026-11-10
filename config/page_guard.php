@@ -8,6 +8,14 @@ require_once __DIR__ . '/auth.php';
 | Each page may define:
 |     $REQUIRE_PERMISSION = 'permission_name';
 |
+| A page may additionally define:
+|     $ALTERNATE_PERMISSIONS = ['other_permission', ...];
+|
+| Holding ANY of the alternate permissions also grants access.  This is used
+| by stage pages that may legitimately be executed either by the operational
+| role (e.g. Finance Officer with 'verify_funds') or by its supervising
+| approver (e.g. Director Accounts & Finance with 'approve_request').
+|
 | The page_permissions table (migration 023) lets admins override which
 | permission is required for any page.  DB value takes precedence over
 | the PHP constant when both are present.
@@ -47,5 +55,17 @@ if (isset($REQUIRE_PERMISSION)) {
         // Table may not exist yet – silently fall back to hard-coded value.
     }
 
-    require_permission($effectivePermission);
+    $hasAlternate = false;
+    if (!empty($ALTERNATE_PERMISSIONS) && is_array($ALTERNATE_PERMISSIONS)) {
+        foreach ($ALTERNATE_PERMISSIONS as $alternatePermission) {
+            if (has_permission($alternatePermission)) {
+                $hasAlternate = true;
+                break;
+            }
+        }
+    }
+
+    if (!$hasAlternate) {
+        require_permission($effectivePermission);
+    }
 }
