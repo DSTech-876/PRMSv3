@@ -1417,13 +1417,12 @@ if ($current === 'AWARDED' && $requestType === 'REGULAR' && !$originalCommitment
                     $financeStageRoles = ['Finance Officer', 'Director Accounts & Finance', 'Admin', 'SuperAdmin'];
                     $canActOnFinanceStage = in_array($role, $financeStageRoles, true);
                     $canUseCommitmentPage = in_array($role, ['Finance Officer', 'Procurement Officer', 'Admin', 'SuperAdmin'], true);
-                    $fundsVerifiableStatuses = ['SUBMITTED', 'HOD_APPROVED', 'DIRECTOR_APPROVED', 'GC_APPROVED', 'QUOTE_APPROVED'];
+                    $fundsVerifiableStatuses = ['HOD_APPROVED', 'DIRECTOR_APPROVED', 'GC_APPROVED', 'QUOTE_APPROVED'];
                     $fundVerificationBypassed = isSkipRfqPath((string)($requestType ?? ''), $rfqId, $current, $request);
 
                     $showVerifyFundsLink = $canActOnFinanceStage
                         && !$fundVerificationBypassed
                         && in_array($current, $fundsVerifiableStatuses, true)
-                        && !($userCanApprove && $nextApproverRole === 'Finance Officer')
                         && !($current === 'QUOTE_APPROVED' && $canUseCommitmentPage);
                     ?>
                     <?php if ($showVerifyFundsLink): ?>
@@ -1438,20 +1437,20 @@ if ($current === 'AWARDED' && $requestType === 'REGULAR' && !$originalCommitment
                         </a>
                     <?php endif; ?>
 
-                    <?php if ($current === 'FUNDS_VERIFIED' && !$nextApprovalId): ?>
+                    <?php if ($current === 'FUNDS_VERIFIED' && !$nextApprovalId && $canUseCommitmentPage): ?>
                         <a href="/commitments/add.php?request_id=<?= $request['request_id'] ?>" class="btn <?= in_array($role, ['Finance Officer', 'Admin', 'SuperAdmin']) ? 'btn-primary' : 'btn-warning text-dark' ?>">
                             <i class="bi <?= in_array($role, ['Finance Officer', 'Admin', 'SuperAdmin']) ? 'bi-cloud-upload' : 'bi-paperclip' ?> me-1"></i>
                             <?= in_array($role, ['Finance Officer', 'Admin', 'SuperAdmin']) ? 'Upload Commitment Form / Create Commitment' : 'Upload Commitment Form (Optional)' ?>
                         </a>
                     <?php endif; ?>
 
-                    <?php if ($current === 'COMMITMENTS_PENDING'): ?>
+                    <?php if ($current === 'COMMITMENTS_PENDING' && $canUseCommitmentPage): ?>
                         <a href="/commitments/add.php?request_id=<?= $request['request_id'] ?>" class="btn btn-primary">
                             <i class="bi bi-cloud-upload me-1"></i>Create Commitment & Upload Document
                         </a>
                     <?php endif; ?>
 
-                    <?php if (in_array($current, ['AWARDED']) && !$originalCommitment): ?>
+                    <?php if (in_array($current, ['AWARDED']) && !$originalCommitment && $canUseCommitmentPage): ?>
                         <a href="/commitments/add.php?request_id=<?= $request['request_id'] ?>" class="btn btn-success">
                             <i class="bi bi-cash-coin me-1"></i>Create Commitment (SOP Step 13)
                         </a>
