@@ -57,5 +57,20 @@ switch ($role) {
     // Read Only
     case 'Viewer':
     default:
+        // An unrecognized role_name falls through to the read-only Viewer
+        // dashboard. This is almost always a sign that a role was renamed
+        // or created with wording that doesn't match the literal case
+        // labels above (role names are normalized at login via
+        // canonicalizeRoleName(), but new/legacy sessions or admin-created
+        // roles outside that alias map will still land here). Log it so the
+        // mismatch is diagnosable instead of silently granting read-only
+        // access to a role that should have an action dashboard.
+        if ($role !== '' && $role !== 'Viewer') {
+            error_log(sprintf(
+                'dashboard/index.php: unmapped role_name "%s" (user_id=%s) routed to viewer.php as fallback',
+                $role,
+                $_SESSION['user_id'] ?? 'unknown'
+            ));
+        }
         header("Location: /dashboard/viewer.php"); exit;
 }

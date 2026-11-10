@@ -6,15 +6,18 @@ require_once $_SERVER['DOCUMENT_ROOT'] . "/config/helper.php";
 require_once $_SERVER['DOCUMENT_ROOT'] . "/config/workflow.php";
 require_once $_SERVER['DOCUMENT_ROOT'] . "/services/SecureFileStorage.php";
 
-// Allow Finance Officers AND Procurement Officers
-$allowedCommitmentRoles = ['Finance Officer', 'Procurement Officer', 'Admin', 'SuperAdmin'];
+// Allow Finance Officers, Procurement Officers, and the supervising Director
+// Accounts & Finance (who may act on finance-stage actions for escalations,
+// oversight, or cover — same equivalence used by canApproveStage(),
+// petty_cash/approve.php and reimbursement/approve.php).
+$allowedCommitmentRoles = ['Finance Officer', 'Procurement Officer', 'Director Accounts & Finance', 'Admin', 'SuperAdmin'];
 if (!in_array(($_SESSION['role'] ?? ''), $allowedCommitmentRoles)) {
     pop("Only Finance and Procurement Officers can manage commitments.", "/procurement/list.php", 2500, "warning");
     exit;
 }
 
 $userRole = $_SESSION['role'] ?? '';
-$isFinance = in_array($userRole, ['Finance Officer', 'Admin', 'SuperAdmin']);
+$isFinance = in_array($userRole, ['Finance Officer', 'Director Accounts & Finance', 'Admin', 'SuperAdmin']);
 $isProcurement = in_array($userRole, ['Procurement Officer', 'Admin', 'SuperAdmin']);
 
 $request_id = isset($_GET['request_id']) ? (int)$_GET['request_id'] : 0;

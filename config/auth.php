@@ -156,6 +156,15 @@ function require_permission(string $permission)
 {
     if (!has_permission($permission)) {
 
+        error_log(sprintf(
+            'require_permission DENIED: user_id=%s role_id=%s role_name=%s permission=%s uri=%s',
+            $_SESSION['user_id'] ?? 'unknown',
+            $_SESSION['role_id'] ?? 'unknown',
+            $_SESSION['role_name'] ?? 'unknown',
+            $permission,
+            $_SERVER['REQUEST_URI'] ?? 'unknown'
+        ));
+
         pop(
             'You do not have permission to access this page.',
             '/dashboard/index.php',

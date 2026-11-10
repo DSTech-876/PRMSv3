@@ -44,6 +44,49 @@ if (!function_exists('he')) {
     }
 }
 
+/**
+ * Canonical role-name resolution
+ * ===============================
+ * The codebase hard-codes exact role-name string literals (e.g.
+ * 'Director Accounts & Finance') in dozens of places: dashboard routing
+ * (dashboard/index.php), workflow stage-equivalence checks
+ * (config/workflow.php::canApproveStage), approval gates
+ * (petty_cash/approve.php, reimbursement/approve.php), notification
+ * targeting (config/notifications.php) and more.
+ *
+ * If a role is ever created/renamed in the `roles` table with wording
+ * that doesn't match these literals exactly (e.g. "Director of Finance &
+ * Accounts" instead of "Director Accounts & Finance"), every one of those
+ * checks silently fails even though role_permissions correctly grants the
+ * relevant permission — producing "not authorized" errors and incorrect
+ * dashboard/workflow routing for that role.
+ *
+ * This map resolves known naming variants to the single canonical name the
+ * rest of the system expects. It is applied once, at the two points a
+ * session's role_name is established (login and acting-role switch), so
+ * every downstream string comparison keeps working without being touched.
+ */
+if (!function_exists('canonicalizeRoleName')) {
+    function canonicalizeRoleName(?string $roleName): ?string
+    {
+        if ($roleName === null) {
+            return null;
+        }
+
+        static $aliases = [
+            // Finance supervisory role — seen created/renamed with the
+            // noun order reversed ("Director of Finance & Accounts").
+            'director of finance & accounts' => 'Director Accounts & Finance',
+            'director of finance and accounts' => 'Director Accounts & Finance',
+            'director accounts and finance' => 'Director Accounts & Finance',
+        ];
+
+        $normalized = strtolower(trim(preg_replace('/\s+/', ' ', $roleName)));
+
+        return $aliases[$normalized] ?? $roleName;
+    }
+}
+
 
 function logRequestTimeline(PDO $pdo, int $request_id, string $action, string $notes = null) {
     $stmt = $pdo->prepare("
