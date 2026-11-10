@@ -4822,7 +4822,12 @@ function notifyDirectorFinanceActionRequired(int $requestId, string $title, stri
             SELECT u.user_id, u.email, u.full_name
             FROM users u
             JOIN roles r ON r.id = u.role_id
-            WHERE r.name = 'Director Accounts & Finance'
+            WHERE r.name IN (
+                'Director Accounts & Finance',
+                'Director of Finance & Accounts',
+                'Director of Finance and Accounts',
+                'Director Accounts and Finance'
+            )
               AND u.is_active = 1
         ");
         $stmt->execute();

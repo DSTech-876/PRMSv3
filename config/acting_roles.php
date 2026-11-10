@@ -85,8 +85,8 @@ function revertToPrimaryRole(PDO $pdo, int $userId): void
     $previousRoleId = $_SESSION['role_id'];
 
     $_SESSION['role_id']   = $_SESSION['primary_role_id'];
-    $_SESSION['role_name'] = $_SESSION['primary_role_name'];
-    $_SESSION['role']      = $_SESSION['primary_role_name'];
+    $_SESSION['role_name'] = canonicalizeRoleName($_SESSION['primary_role_name']);
+    $_SESSION['role']      = $_SESSION['role_name'];
 
     unset(
         $_SESSION['is_acting'],
