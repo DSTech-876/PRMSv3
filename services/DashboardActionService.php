@@ -212,6 +212,7 @@ class DashboardActionService
     private static function directorFinanceDefinitions(): array
     {
         return [
+            self::approvalDefinition('verify_funds_director', ['REGULAR', 'SERVICE_CONTRACT'], ['HOD_APPROVED'], 'Verify Funds', '/procurement/verify_funds.php?id={request_id}', '/procurement/view.php?id={request_id}', 'Pending Fund Verification', 'Finance Officer'),
             self::requestDefinition('high_value_requests', ['REGULAR', 'SERVICE_CONTRACT', 'PETTY_CASH', 'REIMBURSEMENT'], ['HOD_APPROVED', 'SUBMITTED', 'FUNDS_VERIFIED', 'FINANCE_AUTHORIZED', 'COMMITMENTS_PENDING', 'INVOICE_SUBMITTED', 'INVOICE_VERIFIED', 'APPROVED', 'INVOICE_RECEIVED'], 'High Value Request', '/procurement/view.php?id={request_id}', '/procurement/view.php?id={request_id}', 'High Value Requests', 'pr.estimated_value >= {director_threshold}'),
             self::requestDefinition('pending_verifications', ['REGULAR', 'SERVICE_CONTRACT', 'PETTY_CASH', 'REIMBURSEMENT'], ['HOD_APPROVED', 'SUBMITTED', 'FUNDS_VERIFIED', 'INVOICE_SUBMITTED', 'INVOICE_VERIFIED'], 'Pending Verification', '/procurement/view.php?id={request_id}', '/procurement/view.php?id={request_id}', 'Pending Verifications'),
             self::requestDefinition('pending_disbursements', ['PETTY_CASH', 'REIMBURSEMENT', 'REGULAR', 'SERVICE_CONTRACT'], ['FINANCE_AUTHORIZED', 'APPROVED', 'INVOICE_RECEIVED'], 'Pending Disbursement', '/procurement/view.php?id={request_id}', '/procurement/view.php?id={request_id}', 'Pending Disbursements'),

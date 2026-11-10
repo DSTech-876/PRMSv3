@@ -1407,7 +1407,32 @@ if ($current === 'AWARDED' && $requestType === 'REGULAR' && !$originalCommitment
                         </a>
                     <?php endif; ?>
 
-                    <?php if ($current === 'QUOTE_APPROVED'): ?>
+                    <?php
+                    // --- Fund verification ---
+                    // Finance Officer and the supervising Director Accounts & Finance
+                    // both act on the finance stage. The Director has no access to
+                    // /commitments/add.php (an operational Finance/Procurement page),
+                    // so route finance-stage actors to the dedicated verification page
+                    // whenever the approval button above doesn't already cover it.
+                    $financeStageRoles = ['Finance Officer', 'Director Accounts & Finance', 'Admin', 'SuperAdmin'];
+                    $canActOnFinanceStage = in_array($role, $financeStageRoles, true);
+                    $canUseCommitmentPage = in_array($role, ['Finance Officer', 'Procurement Officer', 'Admin', 'SuperAdmin'], true);
+                    $fundsVerifiableStatuses = ['SUBMITTED', 'HOD_APPROVED', 'DIRECTOR_APPROVED', 'GC_APPROVED', 'QUOTE_APPROVED'];
+                    $fundVerificationBypassed = isSkipRfqPath((string)($requestType ?? ''), $rfqId, $current, $request);
+
+                    $showVerifyFundsLink = $canActOnFinanceStage
+                        && !$fundVerificationBypassed
+                        && in_array($current, $fundsVerifiableStatuses, true)
+                        && !($userCanApprove && $nextApproverRole === 'Finance Officer')
+                        && !($current === 'QUOTE_APPROVED' && $canUseCommitmentPage);
+                    ?>
+                    <?php if ($showVerifyFundsLink): ?>
+                        <a href="/procurement/verify_funds.php?id=<?= (int)$request['request_id'] ?>" class="btn btn-success">
+                            <i class="bi bi-cash-coin me-1"></i>Verify Funds
+                        </a>
+                    <?php endif; ?>
+
+                    <?php if ($current === 'QUOTE_APPROVED' && $canUseCommitmentPage): ?>
                         <a href="/commitments/add.php?request_id=<?= $request['request_id'] ?>" class="btn btn-success">
                             <i class="bi bi-cash-coin me-1"></i>Verify Funds & Start Commitment
                         </a>

@@ -7,9 +7,26 @@
  * accounts uploads commitment → responds to procurement with commitment #
  */
 $REQUIRE_PERMISSION = 'verify_funds';
+// The supervising Director Accounts & Finance holds 'approve_request' rather than
+// the Finance Officer's operational 'verify_funds' permission, but may act on the
+// finance stage (see canApproveStage() equivalence in config/workflow.php).
+$ALTERNATE_PERMISSIONS = ['approve_request'];
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/page_guard.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . "/config/db.php";
 require_once $_SERVER['DOCUMENT_ROOT'] . "/config/helper.php";
+require_once $_SERVER['DOCUMENT_ROOT'] . "/config/workflow.php";
+
+$actorRole = $_SESSION['role_name'] ?? '';
+$isPrivilegedActor = in_array($actorRole, ['Admin', 'SuperAdmin'], true);
+if (!$isPrivilegedActor && !canApproveStage($actorRole, 'Finance Officer', 0.0)) {
+    pop(
+        'You are not authorized to verify funds for procurement requests.',
+        '/dashboard/index.php',
+        POP_DEFAULT_DELAY_MS,
+        'error'
+    );
+    exit;
+}
 
 $request_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($request_id <= 0) {
@@ -33,39 +50,111 @@ if (!$request) {
     exit;
 }
 
-/* Must be in HOD_APPROVED or SUBMITTED status */
-$allowedStatuses = ['HOD_APPROVED', 'SUBMITTED', 'DIRECTOR_APPROVED', 'GC_APPROVED'];
-if (!in_array(strtoupper($request['status']), $allowedStatuses)) {
-    modalPop('Cannot Verify', 'Request must be approved by HOD before fund verification.', '/procurement/view.php?id=' . $request_id, 'error');
+$currentStatus = strtoupper((string)$request['status']);
+
+/* Fund verification happens after branch approval, or after the quote is approved
+   on the RFQ path. */
+$allowedStatuses = ['HOD_APPROVED', 'SUBMITTED', 'DIRECTOR_APPROVED', 'GC_APPROVED', 'QUOTE_APPROVED'];
+if (!in_array($currentStatus, $allowedStatuses, true)) {
+    modalPop('Cannot Verify', 'This request is not at a stage where funds can be verified. Current status: ' . $request['status'], '/procurement/view.php?id=' . $request_id, 'error');
     exit;
 }
+
+/* "Proceed Without RFQ" bypasses fund verification entirely — the request must
+   never transition to FUNDS_VERIFIED on that path. */
+$rfqIdStmt = $pdo->prepare("SELECT rfq_id FROM rfqs WHERE request_id = ? LIMIT 1");
+$rfqIdStmt->execute([$request_id]);
+$linkedRfqId = $rfqIdStmt->fetchColumn();
+
+if (isSkipRfqPath((string)($request['request_type'] ?? ''), $linkedRfqId, $currentStatus, $request)) {
+    modalPop(
+        'Cannot Verify',
+        'Funds verification is bypassed for requests that proceeded without an RFQ. Create the commitment directly.',
+        '/procurement/view.php?id=' . $request_id,
+        'warning'
+    );
+    exit;
+}
+
+/* A request can reach this page with funds_available already set while the status
+   was never advanced (legacy records written before fund verification performed a
+   real stage transition). Surface it, but still allow the verification to be
+   completed so the pipeline can catch up. */
+$previouslyMarkedVerified = !empty($request['funds_available']) && !empty($request['finance_reviewed_at']);
+
+/* The pending Finance Officer approval (when the chain has one) must be closed
+   off together with the status change, otherwise the pipeline stays behind while
+   the request shows funds as verified. */
+$financeApprovalStmt = $pdo->prepare("
+    SELECT id FROM request_approvals
+    WHERE request_id = ?
+      AND status = 'pending'
+      AND role = 'Finance Officer'
+    ORDER BY stage_order ASC
+    LIMIT 1
+");
+$financeApprovalStmt->execute([$request_id]);
+$pendingFinanceApprovalId = $financeApprovalStmt->fetchColumn();
 
 /* Handle POST - verify funds */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireCsrfToken('/procurement/verify_funds.php?id=' . $request_id);
 
-    try {
-        $fundsAvailable = (int)($_POST['funds_available'] ?? 0);
-        $remarks = trim($_POST['remarks'] ?? '');
+    $fundsAvailable = (int)($_POST['funds_available'] ?? 0);
+    $remarks = trim($_POST['remarks'] ?? '');
 
+    /* Resolve (and validate) the status change BEFORE writing anything, so the
+       request can never end up flagged as verified while the pipeline stays at
+       the previous stage. */
+    $nextStatus = null;
+    if ($fundsAvailable) {
+        $nextStatus = $pendingFinanceApprovalId
+            ? getNextStatusAfterApproval($pdo, $request_id, 'Finance Officer')
+            : 'FUNDS_VERIFIED';
+        enforceTransition($request, $nextStatus);
+    }
+
+    try {
         $pdo->beginTransaction();
 
-        $stmt = $pdo->prepare("
-            UPDATE procurement_requests
-            SET funds_available = ?,
-                finance_reviewed_by = ?,
-                finance_reviewed_at = NOW()
-            WHERE request_id = ?
-        ");
-        $stmt->execute([$fundsAvailable, $_SESSION['user_id'], $request_id]);
+        if ($fundsAvailable) {
+            if ($pendingFinanceApprovalId) {
+                $pdo->prepare("
+                    UPDATE request_approvals
+                    SET status = 'approved',
+                        approved_by = ?,
+                        approved_at = NOW()
+                    WHERE id = ?
+                ")->execute([$_SESSION['user_id'], $pendingFinanceApprovalId]);
+            }
+
+            $pdo->prepare("
+                UPDATE procurement_requests
+                SET status = ?,
+                    funds_available = 1,
+                    finance_reviewed_by = ?,
+                    finance_reviewed_at = NOW()
+                WHERE request_id = ?
+            ")->execute([$nextStatus, $_SESSION['user_id'], $request_id]);
+
+            logProcurementVisibilityGranted($pdo, $request_id, $nextStatus, $currentStatus);
+        } else {
+            $pdo->prepare("
+                UPDATE procurement_requests
+                SET funds_available = 0,
+                    finance_reviewed_by = ?,
+                    finance_reviewed_at = NOW()
+                WHERE request_id = ?
+            ")->execute([$_SESSION['user_id'], $request_id]);
+        }
 
         $action = $fundsAvailable ? 'FUNDS_VERIFIED' : 'FUNDS_DENIED';
         $note = $fundsAvailable
-            ? 'Funds verified by Accounts. Ready for commitment upload.'
+            ? 'Funds verified by ' . ($_SESSION['full_name'] ?? $actorRole) . '. Status changed to ' . $nextStatus . '.'
             : 'Funds not available. Remarks: ' . $remarks;
 
         logAudit($pdo, 'procurement_requests', $request_id, $action, $note);
-        logRequestTimeline($pdo, $request_id, $action, $note);
+        logRequestTimeline($pdo, $request_id, $fundsAvailable ? $nextStatus : $action, $note);
 
         $pdo->commit();
 
@@ -79,10 +168,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
 
         if ($fundsAvailable) {
+            notifyNextApprover($request_id, 'Finance Officer');
+            notifyProcurementOfApproval($request_id, $nextStatus);
+            if ($nextStatus === 'FUNDS_VERIFIED') {
+                notifyProcurementCommitmentFormNeeded($request_id);
+            }
+
             modalPop(
                 'Funds Verified',
-                'Funds have been certified as available. You can now upload the commitment document.',
-                '/commitments/upload.php?request_id=' . $request_id,
+                'Funds have been certified as available and the request has moved to ' . $nextStatus . '.',
+                '/procurement/view.php?id=' . $request_id,
                 'success'
             );
         } else {
@@ -119,6 +214,14 @@ require_once $_SERVER['DOCUMENT_ROOT'] . "/includes/header.php";
     <?php if (!empty($_SESSION['error'])): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($_SESSION['error']) ?></div>
         <?php unset($_SESSION['error']); ?>
+    <?php endif; ?>
+
+    <?php if ($previouslyMarkedVerified): ?>
+        <div class="alert alert-warning">
+            <strong>⚠️ Incomplete verification detected.</strong>
+            This request was already flagged as having funds available, but the workflow stage was never advanced.
+            Submitting the verification below will move the request forward and update the pipeline.
+        </div>
     <?php endif; ?>
 
     <!-- Request Details -->
@@ -232,7 +335,7 @@ require_once $_SERVER['DOCUMENT_ROOT'] . "/includes/header.php";
                 <div class="alert alert-light border">
                     <strong>ℹ️ Next Steps:</strong>
                     <ul class="mb-0 mt-2">
-                        <li>If funds are available, you will be redirected to upload the commitment document</li>
+                        <li>If funds are available, the request advances to the next workflow stage and Procurement is notified to prepare the commitment form</li>
                         <li>The commitment number will be generated and shared with the procurement team</li>
                         <li>If funds are not available, the request will be flagged</li>
                     </ul>
