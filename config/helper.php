@@ -79,6 +79,7 @@ if (!function_exists('canonicalizeRoleName')) {
             'director of finance & accounts' => 'Director Accounts & Finance',
             'director of finance and accounts' => 'Director Accounts & Finance',
             'director accounts and finance' => 'Director Accounts & Finance',
+            'director accounts & finance' => 'Director Accounts & Finance',
         ];
 
         $normalized = strtolower(trim(preg_replace('/\s+/', ' ', $roleName)));
