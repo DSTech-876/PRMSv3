@@ -5,6 +5,7 @@ require_once $_SERVER['DOCUMENT_ROOT'] . "/config/db.php";
 require_once $_SERVER['DOCUMENT_ROOT'] . "/config/helper.php";
 require_once $_SERVER['DOCUMENT_ROOT'] . "/config/workflow.php";
 require_once $_SERVER['DOCUMENT_ROOT'] . "/services/SecureFileStorage.php";
+require_once $_SERVER['DOCUMENT_ROOT'] . "/services/ProcurementTaskService.php";
 
 // Allow Finance Officers and Procurement Officers to create commitments.
 // The Director Accounts & Finance may supervise approval workflows but does not have
