@@ -4,8 +4,10 @@
  * Run this file from browser: /tools/email_diagnostic.php
  */
 
-require_once $_SERVER['DOCUMENT_ROOT'].'/config/app.php';
+$REQUIRE_PERMISSION = 'manage_email_notifications';
+require_once $_SERVER['DOCUMENT_ROOT'].'/config/page_guard.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/db.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/config/helper.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/mailer.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/notifications.php';
 
@@ -169,6 +171,7 @@ require_once $_SERVER['DOCUMENT_ROOT'].'/config/notifications.php';
         echo "<h2>Test Email Send</h2>";
         
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['test_email'])) {
+            requireCsrfToken('/tools/email_diagnostic.php');
             $testEmail = trim($_POST['test_email']);
             
             if (filter_var($testEmail, FILTER_VALIDATE_EMAIL)) {
@@ -211,6 +214,7 @@ HTML;
         ?>
 
         <form method="POST" style="margin-top: 20px;">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(ensureCsrfToken()) ?>">
             <label for="test_email">Test Email Address:</label><br><br>
             <input type="email" id="test_email" name="test_email" required placeholder="Enter email to test" style="padding: 8px; width: 300px;">
             <button type="submit">Send Test Email</button>
@@ -223,6 +227,7 @@ HTML;
         <h2>Recent Notifications Test</h2>
         <?php
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['test_request_id'])) {
+            requireCsrfToken('/tools/email_diagnostic.php');
             $requestId = (int)$_POST['test_request_id'];
             
             if ($requestId > 0) {
@@ -277,6 +282,7 @@ HTML;
         ?>
 
         <form method="POST" style="margin-top: 15px;">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(ensureCsrfToken()) ?>">
             <label for="test_request_id">Test Notification for Request ID:</label><br><br>
             <input type="number" id="test_request_id" name="test_request_id" placeholder="Enter request ID" style="padding: 8px; width: 200px;">
             <button type="submit">Test Notification</button>
