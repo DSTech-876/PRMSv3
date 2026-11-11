@@ -47,4 +47,5 @@ render_pending_finance_approvals([
     'listUrl'           => '/reimbursement/list.php?status=SUBMITTED&approval_pending=1',
     'viewUrlTpl'        => '/reimbursement/view.php?request_id={id}',
     'emptyMessage'      => 'All caught up! No reimbursement requests are currently awaiting your approval.',
+    'showInvoiceCount'  => true,
 ]);

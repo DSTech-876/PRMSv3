@@ -12,13 +12,14 @@ if (!function_exists('render_pending_finance_approvals')) {
      * @param array $cfg Keys:
      *   title, icon, tableId, approverRole, rows, totalAmount, oldestDate,
      *   daysPendingOldest, overdueCount, overdueDays, listUrl,
-     *   viewUrlTpl (contains {id}), emptyMessage
+     *   viewUrlTpl (contains {id}), emptyMessage, showInvoiceCount
      */
     function render_pending_finance_approvals(array $cfg): void
     {
         $rows    = $cfg['rows'] ?? [];
         $tableId = (string)($cfg['tableId'] ?? 'finance-approvals');
         $tools   = '';
+        $showInvoiceCount = (bool)($cfg['showInvoiceCount'] ?? false);
 
         if (!empty($rows)) {
             $tools = '<a class="ui-action ui-action--sm ui-action--primary" href="'
@@ -91,6 +92,9 @@ if (!function_exists('render_pending_finance_approvals')) {
                 <th scope="col" class="ui-num">Amount</th>
                 <th scope="col">Submitted</th>
                 <th scope="col" class="ui-num">Days Pending</th>
+                <?php if ($showInvoiceCount): ?>
+                <th scope="col">Attachments</th>
+                <?php endif; ?>
                 <th scope="col">Actions</th>
             </tr>
         </thead>
@@ -110,6 +114,9 @@ if (!function_exists('render_pending_finance_approvals')) {
                 <td class="ui-num ui-num--strong">JMD <?= number_format((float)$req['estimated_value'], 0) ?></td>
                 <td class="ui-nowrap"><?= date('M d, Y', strtotime((string)$req['created_at'])) ?></td>
                 <td class="ui-num"><?= ui_badge((string)$days, $days > $overdueDays ? 'warning' : 'info') ?></td>
+                <?php if ($showInvoiceCount): ?>
+                <td><?= ui_badge((string)($req['invoice_count'] ?? 0), (int)($req['invoice_count'] ?? 0) > 0 ? 'success' : 'warning') ?></td>
+                <?php endif; ?>
                 <td><a class="ui-action ui-action--sm" href="<?= ui_e($viewUrl) ?>">Review</a></td>
             </tr>
         <?php endforeach; ?>

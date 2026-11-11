@@ -20,10 +20,12 @@
 
   /** Numeric-aware comparison so amounts and dates sort correctly. */
   function compare(a, b) {
-    var na = parseFloat(String(a).replace(/[^0-9.\-]/g, ''));
-    var nb = parseFloat(String(b).replace(/[^0-9.\-]/g, ''));
-    var aNumeric = !isNaN(na) && /\d/.test(a);
-    var bNumeric = !isNaN(nb) && /\d/.test(b);
+    var aTrimmed = String(a).trim();
+    var bTrimmed = String(b).trim();
+    var na = parseFloat(aTrimmed.replace(/[^0-9.\-]/g, ''));
+    var nb = parseFloat(bTrimmed.replace(/[^0-9.\-]/g, ''));
+    var aNumeric = !isNaN(na) && /^\d/.test(aTrimmed) && /\d$/.test(aTrimmed);
+    var bNumeric = !isNaN(nb) && /^\d/.test(bTrimmed) && /\d$/.test(bTrimmed);
     if (aNumeric && bNumeric && na !== nb) { return na - nb; }
 
     var da = Date.parse(a);
@@ -373,7 +375,7 @@
   Enhanced.prototype.exportRows = function () {
     var self = this;
     var visibleIndexes = this.headers
-      .map(function (header, index) { return header.style.display === 'none' ? -1 : index; })
+      .map(function (header, index) { return header.style.display === 'none' || header.hasAttribute('data-ui-noexport') ? -1 : index; })
       .filter(function (index) { return index >= 0; });
 
     var head = visibleIndexes.map(function (index) { return text(self.headers[index]); });
