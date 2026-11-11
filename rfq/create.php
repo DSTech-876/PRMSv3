@@ -4,6 +4,7 @@ require_once $_SERVER['DOCUMENT_ROOT'].'/config/page_guard.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/db.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/helper.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/notifications.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/config/workflow.php';
 
 $request_id = (int)($_GET['request_id'] ?? 0);
 
@@ -14,7 +15,7 @@ if ($request_id <= 0) {
 
 /* Confirm request exists */
 $stmt = $pdo->prepare("
-    SELECT request_id, status, request_number
+    SELECT *
     FROM procurement_requests
     WHERE request_id = ?
 ");
@@ -26,9 +27,15 @@ if (!$request) {
     exit;
 }
 
-/* SOP Step 6: RFQ is created after submission or approval stages */
+/*
+ * SOP Step 6: RFQ is created after submission or approval stages.
+ *
+ * PARALLEL_MODE removes the mandatory Fund Verification dependency before
+ * RFQ — Branch Head approval alone grants procurement eligibility, so an
+ * approved request may proceed to RFQ regardless of the Accounts stage.
+ */
 $allowedForRFQ = ['SUBMITTED', 'HOD_APPROVED', 'DIRECTOR_APPROVED', 'FUNDS_VERIFIED', 'GC_APPROVED', 'RFQ_LETTER_AVAILABLE', 'PROCUREMENT_STAGE', 'EVALUATION_STAGE'];
-if (!in_array(strtoupper($request['status']), $allowedForRFQ, true)) {
+if (!workflowStatusGateAllows($request, $allowedForRFQ, 'CREATE_RFQ', $pdo)) {
     pop('RFQ can only be created for submitted requests.', '/procurement/view.php?id='.$request_id, POP_DEFAULT_DELAY_MS, 'error');
     exit;
 }

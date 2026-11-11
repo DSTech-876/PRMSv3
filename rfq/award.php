@@ -45,7 +45,7 @@ try {
 
     /* UPDATED: Get request details to check threshold */
     $prStmt = $pdo->prepare("
-        SELECT pr.status, pr.estimated_value, pr.request_id as pr_request_id
+        SELECT pr.status, pr.estimated_value, pr.workflow_mode, pr.request_id as pr_request_id
         FROM procurement_requests pr
         JOIN rfqs r ON r.request_id = pr.request_id
         WHERE r.rfq_id = ?
@@ -58,6 +58,15 @@ try {
     }
     
     $prStatus = $prData['status'];
+
+    // PARALLEL_MODE gate context: the award decision is still subject to the
+    // genuine data-integrity rules above (3 quotes, committee size, evaluation
+    // report) — only the stage-ordering constraint is relaxed.
+    $awardGateRequest = [
+        'request_id'    => (int)$prData['pr_request_id'],
+        'status'        => (string)$prStatus,
+        'workflow_mode' => $prData['workflow_mode'] ?? null,
+    ];
     $estimatedValue = (float)($prData['estimated_value'] ?? 0);
     $isUnderThreshold = $estimatedValue <= getDirectProcurementThreshold($pdo);
     
@@ -87,7 +96,7 @@ try {
         
         // Over-threshold: Must be at evaluation stage or beyond for award
         $allowedOverStatuses = ['PROCUREMENT_STAGE', 'EVALUATION_STAGE', 'COMMITTEE_RECOMMENDED', 'GC_APPROVED', 'APPROVED'];
-        if (!in_array($prStatus, $allowedOverStatuses) && !in_array(strtoupper($prStatus), $allowedOverStatuses)) {
+        if (!workflowStatusGateAllows($awardGateRequest, $allowedOverStatuses, 'AWARD_RFQ', $pdo)) {
             throw new Exception("Over-threshold procurement must complete evaluation before award. Current: $prStatus");
         }
         
@@ -130,7 +139,7 @@ try {
         // Under-threshold: No committee evaluation required
         // Just needs approval stage completion (HOD, Director, etc.)
         $approvedStages = ['HOD_APPROVED', 'DIRECTOR_APPROVED', 'GC_APPROVED', 'FUNDS_VERIFIED', 'RFQ_LETTER_AVAILABLE', 'QUOTE_REVIEW_PENDING', 'QUOTE_APPROVED'];
-        if (!in_array($prStatus, $approvedStages)) {
+        if (!workflowStatusGateAllows($awardGateRequest, $approvedStages, 'AWARD_RFQ', $pdo)) {
             throw new Exception("Request must complete approval stage before awarding (Current: $prStatus).");
         }
     }
@@ -227,6 +236,14 @@ try {
 
     /* Commit Transaction */
     $pdo->commit();
+
+    ProcurementTaskService::recordCompletion(
+        $pdo,
+        (int)$prData['pr_request_id'],
+        ProcurementTaskService::TASK_RFQ,
+        (int)($_SESSION['user_id'] ?? 0) ?: null,
+        'RFQ awarded'
+    );
 
 } catch (Exception $e) {
 

@@ -558,16 +558,20 @@ $isFinOfficer  = in_array($role, ['Finance Officer', 'Admin', 'SuperAdmin']);
 $isHodRole     = in_array($role, ['HOD', 'Branch Head', 'Admin', 'SuperAdmin']);
 $quickActions = [];
 
+// PARALLEL_MODE: once the approval chain is cleared, Procurement and Accounts
+// quick actions are all available simultaneously — no stage sequencing.
+$quickActionsParallelUnlocked = parallelActionAllowed($request, 'QUICK_ACTIONS', $pdo);
+
 if ($requestType === 'REGULAR') {
     // RFQ actions for Procurement Officers
     if ($isProcOfficer) {
-        if (in_array($status, ['HOD_APPROVED', 'DIRECTOR_APPROVED', 'GC_APPROVED', 'RFQ_LETTER_AVAILABLE']) && !$rfqId) {
+        if ((in_array($status, ['HOD_APPROVED', 'DIRECTOR_APPROVED', 'GC_APPROVED', 'RFQ_LETTER_AVAILABLE']) || $quickActionsParallelUnlocked) && !$rfqId) {
             $quickActions[] = ['label' => '📬 Create RFQ', 'href' => '/rfq/create.php?request_id=' . $request_id, 'style' => 'background:#cfe2ff;color:#084298;'];
         }
-        if ($rfqId && in_array($status, ['RFQ_LETTER_AVAILABLE', 'QUOTE_REVIEW_PENDING', 'ADDITIONAL_QUOTATIONS_REQUIRED', 'QUOTE_REQUESTOR_REVIEW_PENDING', 'QUOTE_REQUESTOR_REVIEW_APPROVED', 'QUOTE_BRANCH_HEAD_APPROVAL_PENDING', 'QUOTE_APPROVED'])) {
+        if ($rfqId && (in_array($status, ['RFQ_LETTER_AVAILABLE', 'QUOTE_REVIEW_PENDING', 'ADDITIONAL_QUOTATIONS_REQUIRED', 'QUOTE_REQUESTOR_REVIEW_PENDING', 'QUOTE_REQUESTOR_REVIEW_APPROVED', 'QUOTE_BRANCH_HEAD_APPROVAL_PENDING', 'QUOTE_APPROVED']) || $quickActionsParallelUnlocked)) {
             $quickActions[] = ['label' => '👁️ View RFQ', 'href' => '/rfq/view.php?id=' . $rfqId, 'style' => 'background:#e2e3e5;color:#333;'];
         }
-        if (in_array($status, ['FUNDS_VERIFIED', 'COMMITMENTS_PENDING', 'AWARDED'])) {
+        if (in_array($status, ['FUNDS_VERIFIED', 'COMMITMENTS_PENDING', 'AWARDED']) || $quickActionsParallelUnlocked) {
             $quickActions[] = ['label' => '📋 Create Commitment', 'href' => '/commitments/add.php?request_id=' . $request_id, 'style' => 'background:#d1e7dd;color:#0a3622;'];
         }
     }
@@ -776,9 +780,23 @@ if (!empty($quickActions)): ?>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
+     PROCUREMENT TASK STATUS PANEL (PARALLEL_MODE)
+     Replaces the sequential pipeline with task-completion tracking.
+     Rendered for every request — including legacy records — the moment the
+     system is switched to PARALLEL_MODE, with no data migration required.
+═══════════════════════════════════════════════════════ -->
+<?php
+$viewIsParallelMode = WorkflowModeService::isParallelRequest($pdo, $request);
+if ($viewIsParallelMode) {
+    $taskPanelRequest = $request;
+    include $_SERVER['DOCUMENT_ROOT'] . '/views/procurement_task_panel.php';
+}
+?>
+
+<!-- ═══════════════════════════════════════════════════════
      WORKFLOW PIPELINE
 ═══════════════════════════════════════════════════════ -->
-<?php if ($current !== 'DECLINED'): ?>
+<?php if ($current !== 'DECLINED' && !$viewIsParallelMode): ?>
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Workflow Pipeline</h5>
@@ -1401,7 +1419,11 @@ if ($current === 'AWARDED' && $requestType === 'REGULAR' && !$originalCommitment
                     <?php endif; ?>
 
                     <?php // --- Action buttons for RFQ / Quote workflow stages ---
-                    if (in_array($current, ['RFQ_LETTER_AVAILABLE', 'QUOTE_REVIEW_PENDING', 'ADDITIONAL_QUOTATIONS_REQUIRED', 'QUOTE_REQUESTOR_REVIEW_PENDING', 'QUOTE_REQUESTOR_REVIEW_APPROVED', 'QUOTE_BRANCH_HEAD_APPROVAL_PENDING', 'QUOTE_APPROVED']) && $rfqId): ?>
+                    // PARALLEL_MODE: approval status is visible but never blocks
+                    // a department from acting, so the quick links are exposed as
+                    // soon as the request is approved for procurement.
+                    $parallelUnlocked = parallelActionAllowed($request, 'VIEW_ACTIONS', $pdo);
+                    if ((in_array($current, ['RFQ_LETTER_AVAILABLE', 'QUOTE_REVIEW_PENDING', 'ADDITIONAL_QUOTATIONS_REQUIRED', 'QUOTE_REQUESTOR_REVIEW_PENDING', 'QUOTE_REQUESTOR_REVIEW_APPROVED', 'QUOTE_BRANCH_HEAD_APPROVAL_PENDING', 'QUOTE_APPROVED']) || $parallelUnlocked) && $rfqId): ?>
                         <a href="/rfq/view.php?id=<?= (int)$rfqId ?>" class="btn btn-info">
                             <i class="bi bi-eye me-1"></i><?= $current === 'QUOTE_REVIEW_PENDING' ? 'Review Quotes' : 'View RFQ Workflow' ?>
                         </a>
@@ -1422,23 +1444,24 @@ if ($current === 'AWARDED' && $requestType === 'REGULAR' && !$originalCommitment
 
                     $showVerifyFundsLink = $canActOnFinanceStage
                         && !$fundVerificationBypassed
-                        && in_array($current, $fundsVerifiableStatuses, true)
+                        && (in_array($current, $fundsVerifiableStatuses, true) || $parallelUnlocked)
                         && !($userCanApprove && $nextApproverRole === 'Finance Officer')
                         && !($current === 'QUOTE_APPROVED' && $canUseCommitmentPage);
                     ?>
                     <?php if ($showVerifyFundsLink): ?>
                         <a href="/procurement/verify_funds.php?id=<?= (int)$request['request_id'] ?>" class="btn btn-success">
-                            <i class="bi bi-cash-coin me-1"></i>Verify Funds
+                            <i class="bi bi-cash-coin me-1"></i>Verify Funds<?= $parallelUnlocked ? ' (Optional)' : '' ?>
                         </a>
                     <?php endif; ?>
 
                     <?php if ($current === 'QUOTE_APPROVED' && $canUseCommitmentPage): ?>
                         <a href="/commitments/add.php?request_id=<?= $request['request_id'] ?>" class="btn btn-success">
-                            <i class="bi bi-cash-coin me-1"></i>Verify Funds & Start Commitment
+                            <i class="bi bi-cash-coin me-1"></i>Verify Funds &amp; Start Commitment
                         </a>
                     <?php endif; ?>
 
-                    <?php if ($current === 'FUNDS_VERIFIED' && !$nextApprovalId): ?>
+                    <?php if (($current === 'FUNDS_VERIFIED' && !$nextApprovalId)
+                              || ($parallelUnlocked && $canUseCommitmentPage && $current !== 'QUOTE_APPROVED' && $current !== 'COMMITMENTS_PENDING')): ?>
                         <a href="/commitments/add.php?request_id=<?= $request['request_id'] ?>" class="btn <?= in_array($role, ['Finance Officer', 'Admin', 'SuperAdmin']) ? 'btn-primary' : 'btn-warning text-dark' ?>">
                             <i class="bi <?= in_array($role, ['Finance Officer', 'Admin', 'SuperAdmin']) ? 'bi-cloud-upload' : 'bi-paperclip' ?> me-1"></i>
                             <?= in_array($role, ['Finance Officer', 'Admin', 'SuperAdmin']) ? 'Upload Commitment Form / Create Commitment' : 'Upload Commitment Form (Optional)' ?>
@@ -1890,7 +1913,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             <a href="/rfq/generate_rtf.php?id=<?= $rfqId ?>" target="_blank" class="btn btn-outline-info btn-sm">
                                 <i class="bi bi-file-pdf me-1"></i>Generate RFQ Letters
                             </a>
-                        <?php elseif (in_array($current, ['SUBMITTED', 'HOD_APPROVED', 'DIRECTOR_APPROVED', 'FUNDS_VERIFIED', 'GC_APPROVED', 'RFQ_LETTER_AVAILABLE'])): ?>
+                        <?php elseif (in_array($current, ['SUBMITTED', 'HOD_APPROVED', 'DIRECTOR_APPROVED', 'FUNDS_VERIFIED', 'GC_APPROVED', 'RFQ_LETTER_AVAILABLE']) || $quickActionsParallelUnlocked): ?>
                             <!-- ✅ NEW: Create RFQ after submission (all regular procurement needs RFQ) -->
                             <?php if (in_array($role, ['Procurement Officer', 'Admin', 'SuperAdmin'], true) && $current !== 'PROCUREMENT_STAGE'): ?>
                                 <form method="post" action="/procurement/start_procurement.php" class="d-inline">

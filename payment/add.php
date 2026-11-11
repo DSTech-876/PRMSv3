@@ -3,6 +3,7 @@ $REQUIRE_PERMISSION = 'create_payment';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/page_guard.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . "/config/db.php";
 require_once $_SERVER['DOCUMENT_ROOT'] . "/config/helper.php";
+require_once $_SERVER['DOCUMENT_ROOT'] . "/services/ProcurementTaskService.php";
 
 // Validate invoice id
 $invoice_id = isset($_GET['invoice_id']) ? (int)$_GET['invoice_id'] : 0;
@@ -107,6 +108,31 @@ logAudit(
 
     $upd = $pdo->prepare("UPDATE invoices SET status = ? WHERE invoice_id = ?");
     $upd->execute([$newStatus, $invoice_id]);
+
+    /* Task tracking: a payment always counts as progress; the task is only
+       COMPLETED once the invoice is fully settled. */
+    $paymentRequestIdStmt = $pdo->prepare("
+        SELECT c.request_id
+        FROM invoices i
+        JOIN purchase_orders p ON p.po_id = i.po_id
+        JOIN commitments c ON c.commitment_id = p.commitment_id
+        WHERE i.invoice_id = ?
+        LIMIT 1
+    ");
+    $paymentRequestIdStmt->execute([$invoice_id]);
+    $paymentRequestId = (int)($paymentRequestIdStmt->fetchColumn() ?: 0);
+    if ($paymentRequestId > 0) {
+        ProcurementTaskService::markTask(
+            $pdo,
+            $paymentRequestId,
+            ProcurementTaskService::TASK_PAYMENT,
+            $newStatus === 'Paid'
+                ? ProcurementTaskService::STATUS_COMPLETED
+                : ProcurementTaskService::STATUS_IN_PROGRESS,
+            (int)($_SESSION['user_id'] ?? 0) ?: null,
+            $newStatus === 'Paid' ? 'Invoice fully paid' : 'Partial payment recorded'
+        );
+    }
 
     /* Check if PO is fully paid */
     if ($i['po_id']) {

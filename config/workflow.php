@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../services/SystemConfigService.php';
+require_once __DIR__ . '/../services/WorkflowModeService.php';
+require_once __DIR__ . '/../services/ProcurementTaskService.php';
 
 /**
  * Workflow Transitions
@@ -136,6 +138,117 @@ function canTransition(string $current, string $next): bool {
     $map = allowedTransitions();
     return in_array($next, $map[$current] ?? []);
 }
+
+/**
+ * ===========================================================================
+ * Parallel Procurement Mode helpers
+ * ===========================================================================
+ * These functions are the single seam through which the sequential pipeline
+ * is relaxed.  In LEGACY_MODE they always return false, so every existing
+ * stage gate behaves exactly as it does today.
+ */
+
+/**
+ * Resolve the PDO handle for workflow helpers that are called from page
+ * scripts which keep the connection in a global.
+ */
+function workflowPdo(?PDO $pdo = null): ?PDO
+{
+    if ($pdo instanceof PDO) {
+        return $pdo;
+    }
+    if (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
+        return $GLOBALS['pdo'];
+    }
+    return null;
+}
+
+/**
+ * Is this request running under PARALLEL_MODE?
+ *
+ * @param array<string,mixed> $request
+ */
+function isParallelWorkflow(array $request, ?PDO $pdo = null): bool
+{
+    $pdo = workflowPdo($pdo);
+    if (!$pdo) {
+        return false;
+    }
+    return WorkflowModeService::isParallelRequest($pdo, $request);
+}
+
+/**
+ * Permission-based replacement for stage-based blocking: has the request
+ * cleared its approval chain, so that Procurement and Accounts may now act
+ * independently?  False in LEGACY_MODE.
+ *
+ * @param array<string,mixed> $request
+ */
+function parallelActionAllowed(array $request, string $action = '', ?PDO $pdo = null): bool
+{
+    $pdo = workflowPdo($pdo);
+    if (!$pdo) {
+        return false;
+    }
+    return WorkflowModeService::allowsParallelAction($pdo, $request, $action);
+}
+
+/**
+ * Shared predicate for every "is the request in one of these statuses?" gate.
+ *
+ * LEGACY_MODE  → plain allowlist check (unchanged behaviour).
+ * PARALLEL_MODE→ allowlist check OR the request is approved for procurement.
+ *
+ * @param array<string,mixed> $request
+ * @param string[]            $allowedStatuses
+ */
+function workflowStatusGateAllows(array $request, array $allowedStatuses, string $action = '', ?PDO $pdo = null): bool
+{
+    $current = strtoupper(trim((string)($request['status'] ?? '')));
+    $allowed = array_map('strtoupper', $allowedStatuses);
+
+    if (in_array($current, $allowed, true)) {
+        return true;
+    }
+
+    return parallelActionAllowed($request, $action, $pdo);
+}
+
+/**
+ * Transition validity under the active mode.
+ *
+ * In PARALLEL_MODE an approved request may move to any non-backward,
+ * non-terminal operational status without having walked the pipeline in
+ * order — commitments before POs, invoices before commitments, and so on.
+ * Cancellation/pause/decline rules and role authorization are untouched.
+ *
+ * @param array<string,mixed> $request
+ */
+function canTransitionInMode(array $request, string $next, ?PDO $pdo = null): bool
+{
+    $current = strtoupper(trim((string)($request['status'] ?? '')));
+    $next    = strtoupper(trim($next));
+
+    if (canTransition($current, $next)) {
+        return true;
+    }
+
+    if (!parallelActionAllowed($request, 'TRANSITION:' . $next, $pdo)) {
+        return false;
+    }
+
+    // Terminal states still require the normal rules.
+    if (in_array($current, ['COMPLETED', 'DECLINED', 'CANCELLED'], true)) {
+        return false;
+    }
+    if (in_array($next, ['CANCELLED', 'PAUSED', 'DECLINED'], true)) {
+        return canTransition($current, $next);
+    }
+
+    // Any known operational status is reachable once the request is approved.
+    return array_key_exists($next, allowedTransitions()) || $next === 'COMPLETED';
+}
+
 
 /**
  * Return the ordered list of statuses that indicate a request has passed the award
@@ -529,7 +642,10 @@ function getCommitteeReviewThreshold(PDO $pdo): float {
 
 function enforceTransition(array $request, string $nextStage) {
 
-    if (!canTransition($request['status'], $nextStage)) {
+    // PARALLEL_MODE: an approved request is not bound to the sequential
+    // pipeline order. Role authorization and the signed-document gate below
+    // still apply — only the stage-ordering constraint is relaxed.
+    if (!canTransitionInMode($request, $nextStage)) {
         pop(
             "Invalid workflow transition from {$request['status']} to {$nextStage}",
             '/procurement/list.php',

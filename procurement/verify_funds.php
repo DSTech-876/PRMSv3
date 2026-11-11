@@ -53,9 +53,13 @@ if (!$request) {
 $currentStatus = strtoupper((string)$request['status']);
 
 /* Fund verification happens after branch approval, or after the quote is approved
-   on the RFQ path. */
+   on the RFQ path.
+
+   PARALLEL_MODE: fund verification is optional and informational — Accounts
+   may record it at any point after approval, including after the RFQ, PO or
+   invoice already exist. It never blocks procurement activity. */
 $allowedStatuses = ['HOD_APPROVED', 'SUBMITTED', 'DIRECTOR_APPROVED', 'GC_APPROVED', 'QUOTE_APPROVED'];
-if (!in_array($currentStatus, $allowedStatuses, true)) {
+if (!workflowStatusGateAllows($request, $allowedStatuses, 'VERIFY_FUNDS', $pdo)) {
     modalPop('Cannot Verify', 'This request is not at a stage where funds can be verified. Current status: ' . $request['status'], '/procurement/view.php?id=' . $request_id, 'error');
     exit;
 }
@@ -157,6 +161,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         logRequestTimeline($pdo, $request_id, $fundsAvailable ? $nextStatus : $action, $note);
 
         $pdo->commit();
+
+        // Task tracking (PARALLEL_MODE progress board). Best-effort: never
+        // allowed to affect the committed workflow action.
+        ProcurementTaskService::markTask(
+            $pdo,
+            $request_id,
+            ProcurementTaskService::TASK_FUND_VERIFICATION,
+            $fundsAvailable ? ProcurementTaskService::STATUS_COMPLETED : ProcurementTaskService::STATUS_IN_PROGRESS,
+            (int)($_SESSION['user_id'] ?? 0) ?: null,
+            $fundsAvailable ? 'Funds confirmed available' : 'Funds reported unavailable'
+        );
 
         /* Inform the requestor (and procurement, when visible) of the outcome */
         require_once $_SERVER['DOCUMENT_ROOT'] . "/config/notifications.php";
