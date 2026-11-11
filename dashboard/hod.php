@@ -4,6 +4,7 @@ require_once $_SERVER['DOCUMENT_ROOT'].'/config/page_guard.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/db.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/workflow.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/helper.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/includes/ui.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/includes/header.php';
 
 /* Self-heal: seed any missing approval chains for SUBMITTED requests */
@@ -181,398 +182,391 @@ $curSort = $_GET['sort'] ?? 'request_date';
 $curDir  = strtoupper($_GET['dir'] ?? 'ASC');
 ?>
 
-<style>
-.hod-kpi-card {
-    color: white;
-    padding: 1.1rem 1rem;
-    border-radius: 12px;
-    text-decoration: none;
-    display: block;
-    transition: transform 0.2s, box-shadow 0.2s;
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-}
-.hod-kpi-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.18) !important;
-    color: white;
-}
-.hod-kpi-card h6 { margin: 0; font-weight: 600; opacity: 0.92; font-size: 0.82rem; }
-.hod-kpi-card h3 { margin: 0.4rem 0 0 0; font-size: 2.1rem; font-weight: 700; }
-.hod-kpi-card .kpi-icon { position: absolute; right: 0.8rem; top: 50%; transform: translateY(-50%); font-size: 2.2rem; opacity: 0.2; }
-.hod-th-sort { cursor: pointer; user-select: none; white-space: nowrap; }
-</style>
+<div class="ui-page">
 
-<div style="max-width: 1400px; margin: 2rem auto; padding: 0 1rem;">
-  <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1rem;">
-    <div style="display: flex; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-      <span style="font-size: 1.5em; margin-right: 1rem;">👤</span>
-      <h4 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: #333;">HOD <span style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;">Dashboard</span></h4>
-    </div>
+<?php
+$hodFiltersActive = ($fReqNum !== '' || $fBranch || $fRequestor !== '' || $fStatus !== '' || $fFrom !== '' || $fTo !== '' || $fYear);
 
-    <!-- Approvals Required Panel (HOD/Branch Head only) -->
-    <?php if ($showApprovalsPanel): ?>
-        <div style="background: linear-gradient(135deg, #2d5016 0%, #3d6b1f 100%); border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; color: white;">
-            <div style="display: flex; align-items: center; margin-bottom: 1rem;">
-                <i style="font-size: 1.5rem; margin-right: 0.75rem;">📋</i>
-                <h5 style="margin: 0; font-size: 1.1rem; font-weight: 700;">Approvals Required</h5>
+ui_page_header([
+    'title'    => 'Branch Head Dashboard',
+    'subtitle' => sprintf(
+        'Welcome back, %s • %s • %s',
+        $_SESSION['full_name'] ?? 'User',
+        $_SESSION['role_name'] ?? 'HOD',
+        date('l, j F Y')
+    ),
+    'icon'        => 'bi-person-badge',
+    'breadcrumbs' => [
+        ['label' => 'Home', 'href' => '/dashboard/index.php'],
+        ['label' => 'Branch Head Dashboard'],
+    ],
+    'actions' => [
+        ['label' => 'Approval Queue',  'href' => '/dashboard/approval_queue.php', 'icon' => 'bi-clock-history', 'variant' => 'primary'],
+        ['label' => 'All Requests',    'href' => '/procurement/list.php',         'icon' => 'bi-list-task'],
+        ['label' => 'Commitments',     'href' => '/commitments/list.php',         'icon' => 'bi-pin-angle'],
+        ['label' => 'Purchase Orders', 'href' => '/po/list.php',                  'icon' => 'bi-file-earmark-text'],
+        ['label' => 'Refresh',         'icon' => 'bi-arrow-clockwise', 'onclick' => 'location.reload()', 'title' => 'Refresh page'],
+    ],
+]);
+
+ui_kpi_grid([
+    ['label' => 'Pending Approvals',    'value' => number_format($cntPendingApprovals),    'meta' => 'Submitted requests',      'icon' => 'bi-hourglass-split',   'variant' => 'amber',  'href' => '/procurement/list.php?request_status=SUBMITTED'],
+    ['label' => 'Approved Requests',    'value' => number_format($cntHodApproved),         'meta' => 'HOD approved',            'icon' => 'bi-check2-circle',     'variant' => 'purple', 'href' => '/procurement/list.php?request_status=HOD_APPROVED'],
+    ['label' => 'Rejected Requests',    'value' => number_format($cntDeclined),            'meta' => 'Declined',                'icon' => 'bi-x-circle',          'variant' => 'red',    'href' => '/procurement/list.php?request_status=DECLINED'],
+    ['label' => 'Awaiting Procurement', 'value' => number_format($cntAwaitingProcurement), 'meta' => 'Funds verified',          'icon' => 'bi-gear',              'variant' => 'green',  'href' => '/procurement/list.php?request_status=FUNDS_VERIFIED'],
+    ['label' => 'Awaiting Finance',     'value' => number_format($cntAwaitingFinance),     'meta' => 'Commitments pending',     'icon' => 'bi-cash-stack',        'variant' => 'blue',   'href' => '/procurement/list.php?request_status=COMMITMENTS_PENDING'],
+    ['label' => 'Total Pending Items',  'value' => number_format($totalPending),           'meta' => 'Across all queues',       'icon' => 'bi-inbox',             'variant' => 'slate',  'href' => '/procurement/list.php'],
+]);
+
+$hodTabs = [
+    ['id' => 'approvals', 'label' => 'Request Approvals', 'icon' => 'bi-file-earmark-check', 'count' => count($requests), 'active' => true],
+];
+if ($showApprovalsPanel) {
+    $hodTabs[] = ['id' => 'special', 'label' => 'Petty Cash & Reimbursements', 'icon' => 'bi-wallet2'];
+}
+$hodTabs[] = ['id' => 'actions', 'label' => 'Pending Actions', 'icon' => 'bi-check2-square'];
+if (!empty($pendingBranchHeadRfqApprovals)) {
+    $hodTabs[] = ['id' => 'rfqapprovals', 'label' => 'RFQ Approvals', 'icon' => 'bi-shield-check', 'count' => count($pendingBranchHeadRfqApprovals)];
+}
+if (!empty($rfqAwards)) {
+    $hodTabs[] = ['id' => 'awards', 'label' => 'RFQ Awards', 'icon' => 'bi-trophy', 'count' => count($rfqAwards)];
+}
+if (!empty($pendingCommitments)) {
+    $hodTabs[] = ['id' => 'commitments', 'label' => 'Commitments', 'icon' => 'bi-cash-coin', 'count' => count($pendingCommitments)];
+}
+if (!empty($pendingPOs)) {
+    $hodTabs[] = ['id' => 'pos', 'label' => 'Purchase Orders', 'icon' => 'bi-file-earmark-text', 'count' => count($pendingPOs)];
+}
+$hodTabs[] = ['id' => 'analytics', 'label' => 'Analytics', 'icon' => 'bi-graph-up'];
+$hodTabs[] = ['id' => 'activity',  'label' => 'Activity',  'icon' => 'bi-clock-history'];
+
+ui_tabs('hod', $hodTabs);
+?>
+
+<?php ui_tabpanel_open('hod', 'approvals', true); ?>
+    <details class="ui-filter-panel" data-ui-remember="hod-filters"<?= $hodFiltersActive ? ' open' : '' ?>>
+        <summary><i class="bi bi-funnel-fill" aria-hidden="true"></i> Advanced Search &amp; Filter<?= $hodFiltersActive ? ' <span class="ui-badge ui-badge--info">active</span>' : '' ?></summary>
+        <form method="get" class="row g-2">
+            <div class="col-md-2 col-sm-4">
+                <label class="form-label small fw-bold text-muted" for="hod-f-reqnum">Request Number</label>
+                <input type="text" id="hod-f-reqnum" name="req_number" value="<?= htmlspecialchars($fReqNum) ?>" placeholder="e.g. PR001" class="form-control form-control-sm">
             </div>
-            <p style="margin: 0 0 1rem 0; opacity: 0.95;">As a <?= htmlspecialchars($approverRole) ?>, you have pending petty cash and reimbursement requests awaiting your decision.</p>
-        </div>
-
-        <!-- Petty Cash Approvals Widget -->
-        <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/dashboard/widgets/pending_petty_cash_approvals.php'; ?>
-
-        <!-- Reimbursement Approvals Widget -->
-        <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/dashboard/widgets/pending_reimbursement_approvals.php'; ?>
-    <?php endif; ?>
-
-
-
-    <!-- Quick Nav Buttons -->
-    <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 2px solid #e0e0e0;">
-      <a href="/procurement/list.php" style="background: white; border: 1px solid #667eea; color: #667eea; padding: 0.625rem 1.25rem; border-radius: 8px; text-decoration: none; font-size: 0.875rem; font-weight: 600;">
-        <i class="bi bi-list-task" style="margin-right: 0.5rem;"></i>All Requests
-      </a>
-      <a href="/commitments/list.php" style="background: white; border: 1px solid #fa709a; color: #fa709a; padding: 0.625rem 1.25rem; border-radius: 8px; text-decoration: none; font-size: 0.875rem; font-weight: 600;">
-        <i class="bi bi-pin-angle" style="margin-right: 0.5rem;"></i>Commitments
-      </a>
-      <a href="/po/list.php" style="background: white; border: 1px solid #4facfe; color: #4facfe; padding: 0.625rem 1.25rem; border-radius: 8px; text-decoration: none; font-size: 0.875rem; font-weight: 600;">
-        <i class="bi bi-file-earmark-text" style="margin-right: 0.5rem;"></i>Purchase Orders
-      </a>
-      <a href="/dashboard/approval_queue.php" style="background: linear-gradient(135deg, #f5576c 0%, #ff6f91 100%); color: white; padding: 0.625rem 1.25rem; border-radius: 8px; text-decoration: none; font-size: 0.875rem; font-weight: 600; box-shadow: 0 2px 8px rgba(245, 87, 108, 0.3);">
-        <i class="bi bi-clock-history" style="margin-right: 0.5rem;"></i>Approval Queue
-      </a>
-    </div>
-
-    <!-- Clickable KPI Cards -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-      <a href="/procurement/list.php?request_status=SUBMITTED" class="hod-kpi-card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); box-shadow: 0 4px 12px rgba(250,112,154,0.3);">
-        <h6>Pending Approvals</h6>
-        <h3><?= $cntPendingApprovals ?></h3>
-        <span class="kpi-icon">⏳</span>
-      </a>
-      <a href="/procurement/list.php?request_status=HOD_APPROVED" class="hod-kpi-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); box-shadow: 0 4px 12px rgba(102,126,234,0.3);">
-        <h6>Approved Requests</h6>
-        <h3><?= $cntHodApproved ?></h3>
-        <span class="kpi-icon">✅</span>
-      </a>
-      <a href="/procurement/list.php?request_status=DECLINED" class="hod-kpi-card" style="background: linear-gradient(135deg, #f5576c 0%, #ff6f91 100%); box-shadow: 0 4px 12px rgba(245,87,108,0.3);">
-        <h6>Rejected Requests</h6>
-        <h3><?= $cntDeclined ?></h3>
-        <span class="kpi-icon">❌</span>
-      </a>
-      <a href="/procurement/list.php?request_status=FUNDS_VERIFIED" class="hod-kpi-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); box-shadow: 0 4px 12px rgba(67,233,123,0.3);">
-        <h6>Awaiting Procurement</h6>
-        <h3><?= $cntAwaitingProcurement ?></h3>
-        <span class="kpi-icon">⚙️</span>
-      </a>
-      <a href="/procurement/list.php?request_status=COMMITMENTS_PENDING" class="hod-kpi-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); box-shadow: 0 4px 12px rgba(79,172,254,0.3);">
-        <h6>Awaiting Finance</h6>
-        <h3><?= $cntAwaitingFinance ?></h3>
-        <span class="kpi-icon">💰</span>
-      </a>
-      <a href="/procurement/list.php" class="hod-kpi-card" style="background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%); box-shadow: 0 4px 12px rgba(161,140,209,0.3);">
-        <h6>Total Pending Items</h6>
-        <h3><?= $totalPending ?></h3>
-        <span class="kpi-icon">📊</span>
-      </a>
-    </div>
-
-    <!-- Advanced Filter Panel -->
-    <details style="margin-bottom: 1.5rem;" <?= (!empty($fReqNum) || $fBranch || !empty($fRequestor) || !empty($fStatus) || !empty($fFrom) || !empty($fTo) || $fYear) ? 'open' : '' ?>>
-      <summary style="cursor:pointer; font-weight:700; color:#667eea; font-size:0.95rem; padding: 0.5rem 0; list-style:none; display:flex; align-items:center; gap:0.5rem;">
-        <i class="bi bi-funnel-fill"></i> Advanced Search &amp; Filter
-        <span style="font-size:0.75rem; color:#999; font-weight:400; margin-left:0.5rem;">(click to expand)</span>
-      </summary>
-      <div style="background:#f8f9fa; border-radius:8px; padding:1.25rem; margin-top:0.75rem; border:1px solid #e0e0e0;">
-        <form method="get" class="row g-3">
-          <div class="col-md-2 col-sm-4">
-            <label class="form-label small fw-bold text-muted">Request Number</label>
-            <input type="text" name="req_number" value="<?= htmlspecialchars($fReqNum) ?>" placeholder="e.g. PR001" class="form-control form-control-sm">
-          </div>
-          <div class="col-md-2 col-sm-4">
-            <label class="form-label small fw-bold text-muted">Department</label>
-            <select name="branch_id" class="form-select form-select-sm">
-              <option value="">All Departments</option>
-              <?php foreach ($branches as $br): ?>
-                <option value="<?= $br['branch_id'] ?>" <?= $fBranch == $br['branch_id'] ? 'selected' : '' ?>><?= htmlspecialchars($br['branch_name']) ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-md-2 col-sm-4">
-            <label class="form-label small fw-bold text-muted">Requestor</label>
-            <input type="text" name="requestor" value="<?= htmlspecialchars($fRequestor) ?>" placeholder="Name" class="form-control form-control-sm">
-          </div>
-          <div class="col-md-2 col-sm-4">
-            <label class="form-label small fw-bold text-muted">Status</label>
-            <select name="status" class="form-select form-select-sm">
-              <option value="">All Statuses</option>
-              <?php foreach ($allStatuses as $val => $lbl): ?>
-                <option value="<?= $val ?>" <?= $fStatus === $val ? 'selected' : '' ?>><?= $lbl ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-md-1 col-sm-3">
-            <label class="form-label small fw-bold text-muted">From</label>
-            <input type="date" name="from" value="<?= htmlspecialchars($fFrom) ?>" class="form-control form-control-sm">
-          </div>
-          <div class="col-md-1 col-sm-3">
-            <label class="form-label small fw-bold text-muted">To</label>
-            <input type="date" name="to" value="<?= htmlspecialchars($fTo) ?>" class="form-control form-control-sm">
-          </div>
-          <div class="col-md-1 col-sm-3">
-            <label class="form-label small fw-bold text-muted">Budget Year</label>
-            <select name="budget_year" class="form-select form-select-sm">
-              <option value="">All Years</option>
-              <?php foreach ($budgetYears as $yr): ?>
-                <option value="<?= $yr ?>" <?= $fYear == $yr ? 'selected' : '' ?>><?= $yr ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-md-1 col-sm-3 d-flex align-items-end gap-2">
-            <button type="submit" class="btn btn-primary btn-sm flex-grow-1" style="background:linear-gradient(135deg,#667eea,#764ba2);border:none;">
-              <i class="bi bi-search"></i> Filter
-            </button>
-            <a href="/dashboard/hod.php" class="btn btn-outline-secondary btn-sm" title="Clear filters"><i class="bi bi-arrow-clockwise"></i></a>
-          </div>
+            <div class="col-md-2 col-sm-4">
+                <label class="form-label small fw-bold text-muted" for="hod-f-branch">Department</label>
+                <select id="hod-f-branch" name="branch_id" class="form-select form-select-sm">
+                    <option value="">All Departments</option>
+                    <?php foreach ($branches as $br): ?>
+                        <option value="<?= $br['branch_id'] ?>" <?= $fBranch == $br['branch_id'] ? 'selected' : '' ?>><?= htmlspecialchars($br['branch_name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-2 col-sm-4">
+                <label class="form-label small fw-bold text-muted" for="hod-f-requestor">Requestor</label>
+                <input type="text" id="hod-f-requestor" name="requestor" value="<?= htmlspecialchars($fRequestor) ?>" placeholder="Name" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2 col-sm-4">
+                <label class="form-label small fw-bold text-muted" for="hod-f-status">Status</label>
+                <select id="hod-f-status" name="status" class="form-select form-select-sm">
+                    <option value="">All Statuses</option>
+                    <?php foreach ($allStatuses as $val => $lbl): ?>
+                        <option value="<?= $val ?>" <?= $fStatus === $val ? 'selected' : '' ?>><?= $lbl ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-1 col-sm-3">
+                <label class="form-label small fw-bold text-muted" for="hod-f-from">From</label>
+                <input type="date" id="hod-f-from" name="from" value="<?= htmlspecialchars($fFrom) ?>" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-1 col-sm-3">
+                <label class="form-label small fw-bold text-muted" for="hod-f-to">To</label>
+                <input type="date" id="hod-f-to" name="to" value="<?= htmlspecialchars($fTo) ?>" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-1 col-sm-3">
+                <label class="form-label small fw-bold text-muted" for="hod-f-year">Budget Year</label>
+                <select id="hod-f-year" name="budget_year" class="form-select form-select-sm">
+                    <option value="">All Years</option>
+                    <?php foreach ($budgetYears as $yr): ?>
+                        <option value="<?= $yr ?>" <?= $fYear == $yr ? 'selected' : '' ?>><?= $yr ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-1 col-sm-3 d-flex align-items-end gap-2">
+                <button type="submit" class="ui-action ui-action--primary ui-action--sm flex-grow-1"><i class="bi bi-search" aria-hidden="true"></i><span>Filter</span></button>
+                <a href="/dashboard/hod.php" class="ui-action ui-action--sm" title="Clear filters"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i></a>
+            </div>
         </form>
-      </div>
     </details>
 
-    <!-- Pending Actions Widget -->
+    <?php
+    ui_card_open([
+        'title' => 'Pending Request Approvals',
+        'icon'  => 'bi-file-earmark-check',
+        'tools' => ui_badge(number_format(count($requests)) . ' items', 'neutral'),
+        'flush' => true,
+    ]);
+
+    if (empty($requests)) {
+        echo '<div class="ui-card__pad">';
+        ui_empty('No pending request approvals', 'bi-check-circle');
+        echo '</div>';
+    } else {
+        ui_table_toolbar('hod-requests-table', ['placeholder' => 'Search request, requestor or branch…']);
+        /* Sorting stays server-side via hodSortLink() so it spans the whole
+           result set, not just the current client-side page. */
+        ui_table_open('hod-requests-table', [
+            'perPage'  => 15,
+            'sortable' => false,
+            'label'    => 'Pending request approvals',
+        ]);
+        ?>
+        <thead>
+            <tr>
+                <th scope="col"><?= hodSortLink('request_number', $curSort, $curDir, 'Request #') ?></th>
+                <th scope="col"><?= hodSortLink('requestor_name', $curSort, $curDir, 'Requestor') ?></th>
+                <th scope="col"><?= hodSortLink('branch_name', $curSort, $curDir, 'Branch') ?></th>
+                <th scope="col" class="ui-num"><?= hodSortLink('estimated_value', $curSort, $curDir, 'Amount') ?></th>
+                <th scope="col">Status</th>
+                <th scope="col">Workflow</th>
+                <th scope="col"><?= hodSortLink('request_date', $curSort, $curDir, 'Date') ?></th>
+                <th scope="col" data-ui-noexport>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($requests as $r): ?>
+            <tr>
+                <th scope="row"><a class="ui-link" href="/procurement/view.php?id=<?= (int)$r['request_id'] ?>"><?= ui_e($r['request_number']) ?></a></th>
+                <td><?= ui_e($r['requestor_name'] ?? 'N/A') ?></td>
+                <td><?= ui_e($r['branch_name'] ?? 'N/A') ?></td>
+                <td class="ui-num ui-num--strong"><?= ui_e(normalizeCurrency($r['currency'] ?? 'JMD')) ?> <?= ui_e(number_format((float)$r['estimated_value'], 2)) ?></td>
+                <td><?= statusBadge($r['request_status']) ?></td>
+                <td><?= getWorkflowBadgeHtml(['workflow_path' => $r['workflow_path'] ?? 'STANDARD']) ?></td>
+                <td class="ui-muted"><?= ui_e(date('d M Y', strtotime((string)$r['created_at']))) ?></td>
+                <td class="ui-nowrap">
+                    <a class="ui-action ui-action--sm" href="/procurement/view.php?id=<?= (int)$r['request_id'] ?>"><i class="bi bi-search" aria-hidden="true"></i><span>Review</span></a>
+                    <a class="ui-action ui-action--primary ui-action--sm" href="/procurement/approve_hod.php?id=<?= (int)$r['request_id'] ?>" title="Quick Approve"><i class="bi bi-check2-circle" aria-hidden="true"></i><span>Approve</span></a>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+        <?php
+        ui_table_close('hod-requests-table');
+    }
+    ui_card_close();
+    ?>
+<?php ui_tabpanel_close(); ?>
+
+<?php if ($showApprovalsPanel): ?>
+<?php ui_tabpanel_open('hod', 'special'); ?>
+    <?php
+    ui_card_open(['title' => 'Approvals Required', 'icon' => 'bi-wallet2']);
+    echo '<p class="ui-muted">As a ' . ui_e($approverRole) . ', you have pending petty cash and reimbursement requests awaiting your decision.</p>';
+    ui_card_close();
+
+    /* Petty Cash Approvals Widget */
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/dashboard/widgets/pending_petty_cash_approvals.php';
+
+    /* Reimbursement Approvals Widget */
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/dashboard/widgets/pending_reimbursement_approvals.php';
+    ?>
+<?php ui_tabpanel_close(); ?>
+<?php endif; ?>
+
+<?php ui_tabpanel_open('hod', 'actions'); ?>
     <?php include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/pending_actions.php'; ?>
+<?php ui_tabpanel_close(); ?>
 
-    <!-- Pending Request Approvals (filterable, sortable) -->
-    <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1.5rem;">
-      <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-        <h6 style="margin: 0; font-size: 1rem; font-weight: 700; color: #333;">📋 Pending Request Approvals <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;"><?= count($requests) ?></span></h6>
-      </div>
-      <?php if (empty($requests)): ?>
-        <div style="text-align: center; color: #999; padding: 2rem 0;"><span style="font-size: 1.5em;">✅</span><br><span style="display: block; margin-top: 0.5rem;">No pending request approvals</span></div>
-      <?php else: ?>
-        <div style="overflow-x: auto;">
-          <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-            <thead style="background: #f5f5f5;">
-              <tr>
-                <th class="hod-th-sort" style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= hodSortLink('request_number', $curSort, $curDir, 'Request #') ?></th>
-                <th class="hod-th-sort" style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= hodSortLink('requestor_name', $curSort, $curDir, 'Requestor') ?></th>
-                <th class="hod-th-sort" style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= hodSortLink('branch_name', $curSort, $curDir, 'Branch') ?></th>
-                <th class="hod-th-sort" style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= hodSortLink('estimated_value', $curSort, $curDir, 'Amount') ?></th>
-                <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Status</th>
-                <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Workflow</th>
-                <th class="hod-th-sort" style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= hodSortLink('request_date', $curSort, $curDir, 'Date') ?></th>
-                <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($requests as $r): ?>
-                <tr style="border-bottom: 1px solid #f0f0f0;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='white'">
-                  <td style="padding: 0.75rem 1rem; font-weight: 600;">
-                    <a href="/procurement/view.php?id=<?= (int)$r['request_id'] ?>" style="color:#3f51b5; text-decoration:none; font-weight:700;">
-                      <?= htmlspecialchars($r['request_number']) ?>
-                    </a>
-                  </td>
-                  <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($r['requestor_name'] ?? 'N/A') ?></td>
-                  <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($r['branch_name'] ?? 'N/A') ?></td>
-                  <td style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333;">
-                    <?= htmlspecialchars(normalizeCurrency($r['currency'] ?? 'JMD')) ?> <?= number_format($r['estimated_value'], 2) ?>
-                  </td>
-                  <td style="padding: 0.75rem 1rem;"><?= statusBadge($r['request_status']) ?></td>
-                  <td style="padding: 0.75rem 1rem;"><?= getWorkflowBadgeHtml(['workflow_path' => $r['workflow_path'] ?? 'STANDARD']) ?></td>
-                  <td style="padding: 0.75rem 1rem; color: #999; font-size: 0.8rem;"><?= date('d M Y', strtotime($r['created_at'])) ?></td>
-                  <td style="padding: 0.75rem 1rem; text-align: center;">
-                    <a href="/procurement/view.php?id=<?= (int)$r['request_id'] ?>" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.75rem; font-weight: 600;">
-                      Review
-                    </a>
-                    &nbsp;
-                    <a href="/procurement/approve_hod.php?id=<?= (int)$r['request_id'] ?>" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.75rem; font-weight: 600;" title="Quick Approve">
-                      ✅ Approve
-                    </a>
-                  </td>
-                </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-      <?php endif; ?>
-    </div>
+<?php if (!empty($pendingBranchHeadRfqApprovals)): ?>
+<?php ui_tabpanel_open('hod', 'rfqapprovals'); ?>
+    <?php
+    ui_card_open([
+        'title'    => 'Pending RFQ Approvals',
+        'icon'     => 'bi-shield-check',
+        'subtitle' => 'These RFQs have been confirmed by the requestor and are awaiting your final Branch Head approval.',
+        'tools'    => '<a class="ui-action ui-action--sm" href="/rfq/approval_pending.php">View All</a>',
+        'flush'    => true,
+    ]);
+    ui_table_toolbar('hod-rfq-approvals-table', ['placeholder' => 'Search RFQ, requestor or supplier…']);
+    ui_table_open('hod-rfq-approvals-table', ['perPage' => 15, 'label' => 'RFQs awaiting Branch Head approval']);
+    ?>
+    <thead>
+        <tr>
+            <th scope="col" data-sortable>RFQ #</th>
+            <th scope="col" data-sortable>Requestor</th>
+            <th scope="col" data-sortable>Branch</th>
+            <th scope="col" data-sortable>Supplier</th>
+            <th scope="col" class="ui-num" data-sortable>Quote Amount</th>
+            <th scope="col" data-sortable>Submitted</th>
+            <th scope="col">Status</th>
+            <th scope="col" class="ui-num" data-sortable>Days Pending</th>
+            <th scope="col" data-ui-noexport>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($pendingBranchHeadRfqApprovals as $bh): ?>
+        <?php
+          $bhSubmittedAt  = $bh['requestor_reviewed_at'] ?: null;
+          $bhDaysPending  = $bhSubmittedAt ? max(0, (int)floor((time() - strtotime($bhSubmittedAt)) / 86400)) : null;
+        ?>
+        <tr>
+            <th scope="row"><?= ui_e($bh['rfq_number']) ?></th>
+            <td><?= ui_e($bh['requestor_name'] ?? 'N/A') ?></td>
+            <td><?= ui_e($bh['branch_name'] ?? 'N/A') ?></td>
+            <td><?= ui_e($bh['selected_vendor_name'] ?? 'Pending selection') ?></td>
+            <td class="ui-num ui-num--strong"><?= !empty($bh['selected_quote_amount']) ? 'JMD ' . ui_e(number_format((float)$bh['selected_quote_amount'], 2)) : '—' ?></td>
+            <td class="ui-muted"><?= $bhSubmittedAt ? ui_e(date('d M Y', strtotime($bhSubmittedAt))) : '—' ?></td>
+            <td><?= ui_badge('Awaiting Branch Head Approval', 'warning') ?></td>
+            <td class="ui-num <?= ($bhDaysPending !== null && $bhDaysPending > 3) ? 'ui-text-danger' : '' ?>"><?= $bhDaysPending !== null ? (int)$bhDaysPending : '—' ?></td>
+            <td class="ui-nowrap">
+                <a class="ui-action ui-action--primary ui-action--sm" href="/rfq/branch_head_approve.php?id=<?= (int)$bh['rfq_id'] ?>"><i class="bi bi-check2-circle" aria-hidden="true"></i><span>Review &amp; Approve</span></a>
+            </td>
+        </tr>
+    <?php endforeach; ?>
+    </tbody>
+    <?php
+    ui_table_close('hod-rfq-approvals-table');
+    ui_card_close();
+    ?>
+<?php ui_tabpanel_close(); ?>
+<?php endif; ?>
 
-    <!-- Pending Commitment Approvals -->
-    <?php if (!empty($pendingCommitments)): ?>
-    <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1.5rem;">
-      <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-        <h6 style="margin: 0; font-size: 1rem; font-weight: 700; color: #333;">💰 Pending Commitment Approvals <span style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;"><?= count($pendingCommitments) ?></span></h6>
-      </div>
-      <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-          <thead style="background: #f5f5f5;">
-            <tr>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Commitment #</th>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Request #</th>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Branch</th>
-              <th style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Total</th>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Date</th>
-              <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($pendingCommitments as $c): ?>
-              <tr style="border-bottom: 1px solid #f0f0f0;">
-                <td style="padding: 0.75rem 1rem; font-weight: 600; color: #333;"><?= htmlspecialchars($c['commitment_number']) ?></td>
-                <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($c['request_number']) ?></td>
-                <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($c['branch_name'] ?? 'N/A') ?></td>
-                <td style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333;">JMD <?= number_format($c['commitment_total'], 2) ?></td>
-                <td style="padding: 0.75rem 1rem; color: #999; font-size: 0.8rem;"><?= date('d M Y', strtotime($c['created_at'])) ?></td>
-                <td style="padding: 0.75rem 1rem; text-align: center;">
-                  <a href="/commitments/view.php?id=<?= $c['commitment_id'] ?>" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.75rem; font-weight: 600;">Review</a>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <?php endif; ?>
+<?php if (!empty($rfqAwards)): ?>
+<?php ui_tabpanel_open('hod', 'awards'); ?>
+    <?php
+    ui_card_open([
+        'title' => 'RFQs Ready for Award',
+        'icon'  => 'bi-trophy',
+        'tools' => ui_badge(number_format(count($rfqAwards)) . ' items', 'neutral'),
+        'flush' => true,
+    ]);
+    ui_table_toolbar('hod-awards-table', ['placeholder' => 'Search RFQ, request or branch…']);
+    ui_table_open('hod-awards-table', ['perPage' => 15, 'label' => 'RFQs ready for award']);
+    ?>
+    <thead>
+        <tr>
+            <th scope="col" data-sortable>RFQ #</th>
+            <th scope="col" data-sortable>Request #</th>
+            <th scope="col" data-sortable>Branch</th>
+            <th scope="col" class="ui-num" data-sortable>Est. Value</th>
+            <th scope="col" data-ui-noexport>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($rfqAwards as $rq): ?>
+        <tr>
+            <th scope="row"><?= ui_e($rq['rfq_number']) ?></th>
+            <td><a class="ui-link" href="/procurement/view.php?id=<?= (int)$rq['request_id'] ?>"><?= ui_e($rq['request_number']) ?></a></td>
+            <td><?= ui_e($rq['branch_name'] ?? 'N/A') ?></td>
+            <td class="ui-num ui-num--strong"><?= ui_e(normalizeCurrency($rq['currency'] ?? 'JMD')) ?> <?= ui_e(number_format((float)$rq['estimated_value'], 2)) ?></td>
+            <td class="ui-nowrap">
+                <a class="ui-action ui-action--primary ui-action--sm" href="/rfq/view.php?id=<?= (int)$rq['rfq_id'] ?>"><i class="bi bi-trophy" aria-hidden="true"></i><span>Award</span></a>
+            </td>
+        </tr>
+    <?php endforeach; ?>
+    </tbody>
+    <?php
+    ui_table_close('hod-awards-table');
+    ui_card_close();
+    ?>
+<?php ui_tabpanel_close(); ?>
+<?php endif; ?>
 
-    <!-- Pending PO Approvals -->
-    <?php if (!empty($pendingPOs)): ?>
-    <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1.5rem;">
-      <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-        <h6 style="margin: 0; font-size: 1rem; font-weight: 700; color: #333;">📄 Pending PO Approvals <span style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;"><?= count($pendingPOs) ?></span></h6>
-      </div>
-      <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-          <thead style="background: #f5f5f5;">
-            <tr>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">PO #</th>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Request #</th>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Branch</th>
-              <th style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Total</th>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Date</th>
-              <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($pendingPOs as $po): ?>
-              <tr style="border-bottom: 1px solid #f0f0f0;">
-                <td style="padding: 0.75rem 1rem; font-weight: 600; color: #333;"><?= htmlspecialchars($po['po_number']) ?></td>
-                <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($po['request_number']) ?></td>
-                <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($po['branch_name'] ?? 'N/A') ?></td>
-                <td style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333;">JMD <?= number_format($po['po_total'], 2) ?></td>
-                <td style="padding: 0.75rem 1rem; color: #999; font-size: 0.8rem;"><?= date('d M Y', strtotime($po['created_at'])) ?></td>
-                <td style="padding: 0.75rem 1rem; text-align: center;">
-                  <a href="/po/view.php?po_id=<?= $po['po_id'] ?>" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.75rem; font-weight: 600;">Review</a>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <?php endif; ?>
+<?php if (!empty($pendingCommitments)): ?>
+<?php ui_tabpanel_open('hod', 'commitments'); ?>
+    <?php
+    ui_card_open([
+        'title' => 'Pending Commitment Approvals',
+        'icon'  => 'bi-cash-coin',
+        'tools' => ui_badge(number_format(count($pendingCommitments)) . ' items', 'neutral'),
+        'flush' => true,
+    ]);
+    ui_table_toolbar('hod-commitments-table', ['placeholder' => 'Search commitment…']);
+    ui_table_open('hod-commitments-table', ['perPage' => 15, 'label' => 'Pending commitment approvals']);
+    ?>
+    <thead>
+        <tr>
+            <th scope="col" data-sortable>Commitment #</th>
+            <th scope="col" data-sortable>Request #</th>
+            <th scope="col" data-sortable>Branch</th>
+            <th scope="col" class="ui-num" data-sortable>Total</th>
+            <th scope="col" data-sortable>Date</th>
+            <th scope="col" data-ui-noexport>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($pendingCommitments as $c): ?>
+        <tr>
+            <th scope="row"><?= ui_e($c['commitment_number']) ?></th>
+            <td><?= ui_e($c['request_number']) ?></td>
+            <td><?= ui_e($c['branch_name'] ?? 'N/A') ?></td>
+            <td class="ui-num ui-num--strong">JMD <?= ui_e(number_format((float)$c['commitment_total'], 2)) ?></td>
+            <td class="ui-muted"><?= ui_e(date('d M Y', strtotime((string)$c['created_at']))) ?></td>
+            <td class="ui-nowrap">
+                <a class="ui-action ui-action--primary ui-action--sm" href="/commitments/view.php?id=<?= (int)$c['commitment_id'] ?>"><i class="bi bi-search" aria-hidden="true"></i><span>Review</span></a>
+            </td>
+        </tr>
+    <?php endforeach; ?>
+    </tbody>
+    <?php
+    ui_table_close('hod-commitments-table');
+    ui_card_close();
+    ?>
+<?php ui_tabpanel_close(); ?>
+<?php endif; ?>
 
-    <!-- Pending RFQ Approvals (Branch Head final approval) -->
-    <?php if (!empty($pendingBranchHeadRfqApprovals)): ?>
-    <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1.5rem;">
-      <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0; display: flex; align-items: center; justify-content: space-between;">
-        <h6 style="margin: 0; font-size: 1rem; font-weight: 700; color: #333;">🛡️ Pending RFQ Approvals <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;"><?= count($pendingBranchHeadRfqApprovals) ?></span></h6>
-        <a href="/rfq/approval_pending.php" style="color: #667eea; text-decoration: none; font-size: 0.8rem; font-weight: 600;">View All &raquo;</a>
-      </div>
-      <p style="margin: 0 0 1rem 0; color: #777; font-size: 0.8rem;">These RFQs have been confirmed by the requestor and are awaiting your final Branch Head approval.</p>
-      <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-          <thead style="background: #f5f5f5;">
-            <tr>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">RFQ #</th>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Requestor</th>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Branch</th>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Supplier</th>
-              <th style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Quote Amount</th>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Submitted</th>
-              <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Status</th>
-              <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Days Pending</th>
-              <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($pendingBranchHeadRfqApprovals as $bh): ?>
-              <?php
-                $bhSubmittedAt  = $bh['requestor_reviewed_at'] ?: null;
-                $bhDaysPending  = $bhSubmittedAt ? max(0, (int)floor((time() - strtotime($bhSubmittedAt)) / 86400)) : null;
-              ?>
-              <tr style="border-bottom: 1px solid #f0f0f0;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='white'">
-                <td style="padding: 0.75rem 1rem; font-weight: 600; color: #333;"><?= htmlspecialchars($bh['rfq_number']) ?></td>
-                <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($bh['requestor_name'] ?? 'N/A') ?></td>
-                <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($bh['branch_name'] ?? 'N/A') ?></td>
-                <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($bh['selected_vendor_name'] ?? 'Pending selection') ?></td>
-                <td style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333;"><?= !empty($bh['selected_quote_amount']) ? 'JMD ' . number_format((float)$bh['selected_quote_amount'], 2) : '—' ?></td>
-                <td style="padding: 0.75rem 1rem; color: #999; font-size: 0.8rem;"><?= $bhSubmittedAt ? date('d M Y', strtotime($bhSubmittedAt)) : '—' ?></td>
-                <td style="padding: 0.75rem 1rem; text-align: center;"><span style="background: #fff3cd; color: #856404; padding: 0.25rem 0.6rem; border-radius: 12px; font-size: 0.72rem; font-weight: 600;">Awaiting Branch Head Approval</span></td>
-                <td style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: <?= ($bhDaysPending !== null && $bhDaysPending > 3) ? '#e74c3c' : '#333' ?>;"><?= $bhDaysPending !== null ? $bhDaysPending : '—' ?></td>
-                <td style="padding: 0.75rem 1rem; text-align: center;">
-                  <a href="/rfq/branch_head_approve.php?id=<?= (int)$bh['rfq_id'] ?>" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.75rem; font-weight: 600;">Review &amp; Approve</a>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <?php endif; ?>
+<?php if (!empty($pendingPOs)): ?>
+<?php ui_tabpanel_open('hod', 'pos'); ?>
+    <?php
+    ui_card_open([
+        'title' => 'Pending PO Approvals',
+        'icon'  => 'bi-file-earmark-text',
+        'tools' => ui_badge(number_format(count($pendingPOs)) . ' items', 'neutral'),
+        'flush' => true,
+    ]);
+    ui_table_toolbar('hod-po-table', ['placeholder' => 'Search purchase order…']);
+    ui_table_open('hod-po-table', ['perPage' => 15, 'label' => 'Pending purchase order approvals']);
+    ?>
+    <thead>
+        <tr>
+            <th scope="col" data-sortable>PO #</th>
+            <th scope="col" data-sortable>Request #</th>
+            <th scope="col" data-sortable>Branch</th>
+            <th scope="col" class="ui-num" data-sortable>Total</th>
+            <th scope="col" data-sortable>Date</th>
+            <th scope="col" data-ui-noexport>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($pendingPOs as $po): ?>
+        <tr>
+            <th scope="row"><?= ui_e($po['po_number']) ?></th>
+            <td><?= ui_e($po['request_number']) ?></td>
+            <td><?= ui_e($po['branch_name'] ?? 'N/A') ?></td>
+            <td class="ui-num ui-num--strong">JMD <?= ui_e(number_format((float)$po['po_total'], 2)) ?></td>
+            <td class="ui-muted"><?= ui_e(date('d M Y', strtotime((string)$po['created_at']))) ?></td>
+            <td class="ui-nowrap">
+                <a class="ui-action ui-action--primary ui-action--sm" href="/po/view.php?po_id=<?= (int)$po['po_id'] ?>"><i class="bi bi-search" aria-hidden="true"></i><span>Review</span></a>
+            </td>
+        </tr>
+    <?php endforeach; ?>
+    </tbody>
+    <?php
+    ui_table_close('hod-po-table');
+    ui_card_close();
+    ?>
+<?php ui_tabpanel_close(); ?>
+<?php endif; ?>
 
-    <!-- RFQ Awards Ready -->
-    <?php if (!empty($rfqAwards)): ?>
-    <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1.5rem;">
-      <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-        <h6 style="margin: 0; font-size: 1rem; font-weight: 700; color: #333;">🏆 RFQs Ready for Award <span style="background: linear-gradient(135deg, #f5576c 0%, #ff6f91 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;"><?= count($rfqAwards) ?></span></h6>
-      </div>
-      <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-          <thead style="background: #f5f5f5;">
-            <tr>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">RFQ #</th>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Request #</th>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Branch</th>
-              <th style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Est. Value</th>
-              <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($rfqAwards as $rq): ?>
-              <tr style="border-bottom: 1px solid #f0f0f0;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='white'">
-                <td style="padding: 0.75rem 1rem; font-weight: 600; color: #333;"><?= htmlspecialchars($rq['rfq_number']) ?></td>
-                <td style="padding: 0.75rem 1rem; color: #666;">
-                  <a href="/procurement/view.php?id=<?= (int)$rq['request_id'] ?>" style="color:#3f51b5; text-decoration:none; font-weight:700;"><?= htmlspecialchars($rq['request_number']) ?></a>
-                </td>
-                <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($rq['branch_name'] ?? 'N/A') ?></td>
-                <td style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333;"><?= htmlspecialchars(normalizeCurrency($rq['currency'] ?? 'JMD')) ?> <?= number_format($rq['estimated_value'], 2) ?></td>
-                <td style="padding: 0.75rem 1rem; text-align: center;">
-                  <a href="/rfq/view.php?id=<?= (int)$rq['rfq_id'] ?>" style="background: linear-gradient(135deg, #f5576c 0%, #ff6f91 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.75rem; font-weight: 600;">Award</a>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
+<?php ui_tabpanel_open('hod', 'analytics'); ?>
+    <div class="ui-grid ui-grid--2">
+        <div><?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/branch_summary.php"; ?></div>
+        <div><?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/pipeline.php"; ?></div>
     </div>
-    <?php endif; ?>
-    
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
-      <?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/branch_summary.php"; ?>
-    </div>
+<?php ui_tabpanel_close(); ?>
 
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
-      <?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/pipeline.php"; ?>
-    </div>
+<?php ui_tabpanel_open('hod', 'activity'); ?>
+    <?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/recent_activity.php"; ?>
+<?php ui_tabpanel_close(); ?>
 
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem;">
-      <?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/recent_activity.php"; ?>
-    </div>
-
-  </div>
 </div>
 
 <?php require_once $_SERVER['DOCUMENT_ROOT'].'/includes/footer.php'; ?>
-

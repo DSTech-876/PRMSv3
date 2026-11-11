@@ -2,6 +2,8 @@
 if (!isset($pdo)) {
 require_once __DIR__.'/_init.php';
 }
+require_once dirname(__DIR__, 2) . '/includes/ui.php';
+
 /* Current month */
 $thisMonth = $pdo->query("
     SELECT 
@@ -29,80 +31,89 @@ $lastMonth = $pdo->query("
     WHERE MONTH(pr.request_date) = MONTH(CURDATE() - INTERVAL 1 MONTH)
       AND YEAR(pr.request_date) = YEAR(CURDATE() - INTERVAL 1 MONTH)
 ")->fetch(PDO::FETCH_ASSOC);
+
+/**
+ * Build a month-over-month delta descriptor for a metric.
+ */
+function monthlyTrendDelta(float $current, float $previous): array
+{
+    if ($previous <= 0.0) {
+        return $current > 0.0
+            ? ['label' => 'New', 'variant' => 'success', 'icon' => 'bi-arrow-up-right']
+            : ['label' => 'No change', 'variant' => 'neutral', 'icon' => 'bi-dash'];
+    }
+    $change = (($current - $previous) / $previous) * 100;
+    if (abs($change) < 0.5) {
+        return ['label' => 'No change', 'variant' => 'neutral', 'icon' => 'bi-dash'];
+    }
+    return [
+        'label'   => ($change > 0 ? '+' : '') . number_format($change, 1) . '%',
+        'variant' => $change > 0 ? 'success' : 'danger',
+        'icon'    => $change > 0 ? 'bi-arrow-up-right' : 'bi-arrow-down-right',
+    ];
+}
+
+$metrics = [
+    [
+        'label'   => 'Requests',
+        'icon'    => 'bi-file-earmark-text',
+        'current' => (float)$thisMonth['requests'],
+        'previous' => (float)$lastMonth['requests'],
+        'money'   => false,
+    ],
+    [
+        'label'   => 'Purchase Orders',
+        'icon'    => 'bi-receipt',
+        'current' => (float)$thisMonth['pos'],
+        'previous' => (float)$lastMonth['pos'],
+        'money'   => false,
+    ],
+    [
+        'label'   => 'Invoiced',
+        'icon'    => 'bi-cash-stack',
+        'current' => (float)$thisMonth['invoiced'],
+        'previous' => (float)$lastMonth['invoiced'],
+        'money'   => true,
+    ],
+];
+
+ui_card_open([
+    'title' => 'Monthly Overview',
+    'icon'  => 'bi-graph-up',
+    'tools' => ui_badge(date('F Y') . ' vs ' . date('F Y', strtotime('-1 month')), 'info'),
+    'flush' => true,
+]);
 ?>
-
-<style>
-    .monthly-widget {
-        background: white;
-        border-radius: 12px;
-        border: 1px solid #e0e0e0;
-        padding: 1.5rem;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-        margin-bottom: 1rem;
-    }
-    .metric-row {
-        display: grid;
-        grid-template-columns: 2fr 1fr 1fr;
-        gap: 1rem;
-        align-items: center;
-        padding: 1rem 0;
-        border-bottom: 1px solid #f0f0f0;
-    }
-    .metric-row:last-child {
-        border-bottom: none;
-    }
-    .metric-label {
-        font-weight: 600;
-        color: #1a1a1a;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    .metric-value {
-        font-size: 1.2rem;
-        font-weight: 700;
-        padding: 0.5rem 1rem;
-        border-radius: 6px;
-        background: #f8f9fa;
-        text-align: center;
-    }
-    .metric-value-this {
-        background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-        color: white;
-    }
-    .metric-value-last {
-        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        color: white;
-    }
-</style>
-
-<div class="monthly-widget">
-    <div style="margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-        <h5 style="margin: 0; font-weight: 600; color: #1a1a1a;"><span style="font-size: 1.3rem;">📊</span> Monthly Overview</h5>
-    </div>
-
-    <div>
-        <div class="metric-row">
-            <div class="metric-label"><span style="font-size: 1.2rem;">📋</span> Requests</div>
-            <div class="metric-value metric-value-this"><?= (int)$thisMonth['requests'] ?></div>
-            <div class="metric-value metric-value-last"><?= (int)$lastMonth['requests'] ?></div>
-        </div>
-
-        <div class="metric-row">
-            <div class="metric-label"><span style="font-size: 1.2rem;">📑</span> Purchase Orders</div>
-            <div class="metric-value metric-value-this"><?= (int)$thisMonth['pos'] ?></div>
-            <div class="metric-value metric-value-last"><?= (int)$lastMonth['pos'] ?></div>
-        </div>
-
-        <div class="metric-row">
-            <div class="metric-label"><span style="font-size: 1.2rem;">💰</span> Invoiced</div>
-            <div class="metric-value metric-value-this">$<?= number_format((float)$thisMonth['invoiced'], 0) ?></div>
-            <div class="metric-value metric-value-last">$<?= number_format((float)$lastMonth['invoiced'], 0) ?></div>
-        </div>
-    </div>
-
-    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 2px solid #e0e0e0; display: flex; justify-content: space-between; font-size: 0.85rem; color: #999;">
-        <span><span style="font-size: 1rem;">🟢</span> This Month</span>
-        <span><span style="font-size: 1rem;">🔵</span> Last Month</span>
-    </div>
+<div class="ui-table-wrap">
+    <table class="ui-table ui-table--compact">
+        <caption class="ui-visually-hidden">Month-over-month procurement metrics</caption>
+        <thead>
+            <tr>
+                <th scope="col">Metric</th>
+                <th scope="col" class="ui-num">This Month</th>
+                <th scope="col" class="ui-num">Last Month</th>
+                <th scope="col" class="ui-num">Change</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($metrics as $metric):
+            $delta  = monthlyTrendDelta($metric['current'], $metric['previous']);
+            $prefix = $metric['money'] ? '$' : '';
+        ?>
+            <tr>
+                <th scope="row">
+                    <i class="bi <?= ui_e($metric['icon']) ?> ui-row-icon" aria-hidden="true"></i>
+                    <?= ui_e($metric['label']) ?>
+                </th>
+                <td class="ui-num ui-num--strong"><?= ui_e($prefix . number_format($metric['current'], 0)) ?></td>
+                <td class="ui-num"><?= ui_e($prefix . number_format($metric['previous'], 0)) ?></td>
+                <td class="ui-num">
+                    <?= ui_badge($delta['label'], $delta['variant']) ?>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
 </div>
+<?php
+ui_card_close();

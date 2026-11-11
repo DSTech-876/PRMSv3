@@ -74,6 +74,16 @@ function isCollapsibleActive($urls, $currentPage) {
         <?php endif; ?>
     </div>
 
+    <!-- NAV QUICK FILTER -->
+    <div class="sidebar-filter px-3 mb-2" data-sidebar-filter hidden>
+        <label class="visually-hidden" for="sidebarNavFilter">Filter navigation</label>
+        <div class="sidebar-filter__control">
+            <i class="bi bi-search sidebar-filter__icon" aria-hidden="true"></i>
+            <input type="search" id="sidebarNavFilter" class="sidebar-filter__input" placeholder="Filter menu&hellip;" autocomplete="off" aria-describedby="sidebarNavFilterStatus">
+        </div>
+        <p class="sidebar-filter__status" id="sidebarNavFilterStatus" role="status" aria-live="polite"></p>
+    </div>
+
     <ul class="nav flex-column px-2">
 
         <!-- ===== REQUESTOR DASHBOARD ===== -->

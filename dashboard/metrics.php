@@ -68,101 +68,76 @@ $overdueInvoices = $pdo->query("
 ================================ */
 $invoiceTrend = trend($invoicesThisMonth, $invoicesLastMonth);
 $paymentTrend = trend($paymentsThisMonth, $paymentsLastMonth);
-//DB not initialized
 require_once $_SERVER['DOCUMENT_ROOT'].'/includes/header.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/includes/ui.php';
+
+/** Map trend()'s Bootstrap text class onto the design-system equivalent. */
+$trendClass = static fn(string $class): string => match ($class) {
+    'text-success' => 'ui-text-success',
+    'text-danger'  => 'ui-text-danger',
+    default        => 'ui-muted',
+};
+
+/** Render a this-month / last-month / trend comparison card. */
+$metricsComparison = static function (string $title, string $icon, $thisMonth, $lastMonth, array $trend) use ($trendClass): void {
+    ui_card_open(['title' => $title, 'icon' => $icon]);
+    ?>
+    <dl class="ui-dl">
+      <div class="ui-dl__row"><dt class="ui-dl__key">This Month</dt><dd class="ui-dl__val"><?= money($thisMonth) ?></dd></div>
+      <div class="ui-dl__row"><dt class="ui-dl__key">Last Month</dt><dd class="ui-dl__val"><?= money($lastMonth) ?></dd></div>
+      <div class="ui-dl__row">
+        <dt class="ui-dl__key">Trend</dt>
+        <dd class="ui-dl__val <?= $trendClass($trend['class']) ?>"><?= $trend['icon'] ?> <?= htmlspecialchars((string)$trend['percent']) ?>%</dd>
+      </div>
+    </dl>
+    <?php
+    ui_card_close();
+};
 ?>
+<div class="ui-page">
+<?php
+ui_page_header([
+    'title'       => 'Financial Metrics',
+    'subtitle'    => 'Department of Government Chemist • ' . date('F Y'),
+    'icon'        => 'bi-cash-coin',
+    'breadcrumbs' => [
+        ['label' => 'Home', 'href' => '/dashboard/index.php'],
+        ['label' => 'Reports'],
+        ['label' => 'Financial Metrics'],
+    ],
+    'actions' => [
+        ['label' => 'Monthly Trends', 'href' => '/dashboard/monthly.php', 'icon' => 'bi-graph-up'],
+        ['label' => 'Dashboard', 'href' => '/dashboard/index.php', 'icon' => 'bi-speedometer2'],
+    ],
+]);
 
-<div class="container mt-4">
-  <div class="d-flex align-items-center mb-4">
-    <img src="/logo/cropped-Logo.png" alt="Logo" style="height:36px;width:auto;" class="me-3">
-    <div>
-      <h3 class="section-title mb-0">💰 Financial Metrics</h3>
-      <small class="text-muted">Department of Government Chemist • <?= date('F Y') ?></small>
-    </div>
-  </div>
+ui_kpi_grid([
+    [
+        'label'   => 'Outstanding Balance',
+        'value'   => money($outstanding ?: 0),
+        'icon'    => 'bi-wallet2',
+        'variant' => 'blue',
+    ],
+    [
+        'label'   => 'Open Purchase Orders',
+        'value'   => number_format((int)$openPOs),
+        'icon'    => 'bi-file-earmark-text',
+        'href'    => '/purchase_orders/list.php?status=Open',
+        'variant' => 'purple',
+    ],
+    [
+        'label'   => 'Overdue Invoices',
+        'value'   => number_format((int)$overdueInvoices),
+        'meta'    => '30+ days unpaid',
+        'icon'    => 'bi-exclamation-octagon',
+        'variant' => (int)$overdueInvoices > 0 ? 'red' : 'green',
+    ],
+]);
 
-  <!-- Global Indicators -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-4">
-      <div class="card shadow-sm border-0 h-100">
-        <div class="card-body text-center">
-          <h6 class="text-muted mb-1">Outstanding Balance</h6>
-          <h3 class="fw-bold text-primary"><?= money($outstanding ?: 0) ?></h3>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card shadow-sm border-0 h-100">
-        <div class="card-body text-center">
-          <h6 class="text-muted mb-1">Open Purchase Orders</h6>
-          <h3 class="fw-bold text-info"><?= (int)$openPOs ?></h3>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card shadow-sm border-0 h-100">
-        <div class="card-body text-center">
-          <h6 class="text-muted mb-1">Overdue Invoices (30+ days)</h6>
-          <h3 class="fw-bold <?= $overdueInvoices > 0 ? 'text-danger' : 'text-success' ?>"><?= (int)$overdueInvoices ?></h3>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- This Month vs Last Month -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-6">
-      <div class="card shadow-sm border-0">
-        <div class="card-header bg-white fw-bold">📄 Invoices</div>
-        <div class="card-body">
-          <table class="table table-sm table-borderless mb-0">
-            <tr>
-              <td class="text-muted">This Month</td>
-              <td class="fw-bold text-end"><?= money($invoicesThisMonth) ?></td>
-            </tr>
-            <tr>
-              <td class="text-muted">Last Month</td>
-              <td class="text-end"><?= money($invoicesLastMonth) ?></td>
-            </tr>
-            <tr>
-              <td class="text-muted">Trend</td>
-              <td class="text-end <?= $invoiceTrend['class'] ?>">
-                <?= $invoiceTrend['icon'] ?> <?= $invoiceTrend['percent'] ?>%
-              </td>
-            </tr>
-          </table>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-6">
-      <div class="card shadow-sm border-0">
-        <div class="card-header bg-white fw-bold">💵 Payments</div>
-        <div class="card-body">
-          <table class="table table-sm table-borderless mb-0">
-            <tr>
-              <td class="text-muted">This Month</td>
-              <td class="fw-bold text-end"><?= money($paymentsThisMonth) ?></td>
-            </tr>
-            <tr>
-              <td class="text-muted">Last Month</td>
-              <td class="text-end"><?= money($paymentsLastMonth) ?></td>
-            </tr>
-            <tr>
-              <td class="text-muted">Trend</td>
-              <td class="text-end <?= $paymentTrend['class'] ?>">
-                <?= $paymentTrend['icon'] ?> <?= $paymentTrend['percent'] ?>%
-              </td>
-            </tr>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="d-flex gap-2 mb-4">
-    <a href="/dashboard/index.php" class="btn btn-outline-secondary">← Dashboard</a>
-    <a href="/dashboard/monthly.php" class="btn btn-outline-primary">📊 Monthly Trends</a>
-  </div>
+echo '<div class="ui-grid ui-grid--2">';
+$metricsComparison('Invoices', 'bi-receipt', $invoicesThisMonth, $invoicesLastMonth, $invoiceTrend);
+$metricsComparison('Payments', 'bi-cash-stack', $paymentsThisMonth, $paymentsLastMonth, $paymentTrend);
+echo '</div>';
+?>
 </div>
-
 <?php require_once $_SERVER['DOCUMENT_ROOT'].'/includes/footer.php'; ?>

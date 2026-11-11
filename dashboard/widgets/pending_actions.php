@@ -283,161 +283,154 @@ function pendingActionCompare(array $left, array $right): int
 
 function pendingActionRiskBadge(array $snapshot): string
 {
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/ui.php';
+
     $map = [
         'critical' => ['danger', 'Critical'],
-        'overdue' => ['warning text-dark', 'High'],
-        'warning' => ['info text-dark', 'Approaching'],
-        'normal' => ['secondary', 'Normal'],
+        'overdue' => ['warning', 'High'],
+        'warning' => ['info', 'Approaching'],
+        'normal' => ['neutral', 'Normal'],
     ];
-    [$class, $label] = $map[$snapshot['risk_level']] ?? $map['normal'];
-    return '<span class="badge bg-' . $class . '">' . htmlspecialchars($label) . '</span>';
+    [$variant, $label] = $map[$snapshot['risk_level']] ?? $map['normal'];
+    return ui_badge($label, $variant);
 }
 
 $pendingApprovals = array_map(static fn(array $row): array => pendingActionDecorate($pdo, $row), $pendingApprovals);
 $workflowActions = array_map(static fn(array $row): array => pendingActionDecorate($pdo, $row), $workflowActions);
 usort($pendingApprovals, 'pendingActionCompare');
 usort($workflowActions, 'pendingActionCompare');
-?>
 
-<div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 1.5rem;">
-    <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0; display:flex; align-items:center; justify-content:space-between;">
-        <h6 style="margin: 0; font-size: 1rem; font-weight: 700; color: #333;">
-            <i class="bi bi-hourglass-split"></i> Requests Requiring Action
-            <?php if ($totalPendingActions > 0): ?>
-            <span style="background: linear-gradient(135deg, #f5576c 0%, #ff6f91 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;"><?= $totalPendingActions ?></span>
-            <?php endif; ?>
-        </h6>
-        <?php if ($totalPendingActions > 0): ?>
-        <?php $escalationProfile = WorkflowConfigurationService::getEscalationPercentages($pdo); ?>
-        <small style="color:#999; font-size:0.75rem;">SLA alerts: <?= (int)$escalationProfile['warning'] ?>% / <?= (int)$escalationProfile['overdue'] ?>% / <?= (int)$escalationProfile['critical'] ?>%</small>
-        <?php endif; ?>
-    </div>
+require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/ui.php';
 
-    <?php if ($totalPendingActions === 0): ?>
-    <!-- Empty state -->
-    <div style="text-align:center; padding: 2.5rem 1rem; color: #aaa;">
-        <i class="bi bi-check2-circle" style="font-size:2.5rem; color:#43e97b; display:block; margin-bottom:0.75rem;"></i>
-        <div style="font-weight:600; color:#555; margin-bottom:0.25rem;">You're all caught up!</div>
-        <small>No requests currently require your action.</small>
-    </div>
-    <?php endif; ?>
+/**
+ * Shared renderer for both pending-action tables. Keeps the two sections
+ * visually identical while letting each pass its own extra columns.
+ */
+$renderPendingActionRows = static function (array $rows, bool $isWorkflow) use ($statusActionMap): void {
+    foreach ($rows as $row) {
+        $age     = (int)$row['_age_days'];
+        $sla     = $row['_sla'];
+        $slaDate = date('d M Y', strtotime($row['created_at'] . ' +' . $sla['sla_days'] . ' days'));
+        $ageCls  = $sla['risk_level'] === 'normal' ? '' : ' ui-text-danger';
 
-    <?php if (!empty($pendingApprovals)): ?>
-    <!-- ── Section 1: Approval-chain approvals ── -->
-    <div style="margin-bottom: 1.5rem;">
-        <h6 style="margin: 0 0 1rem 0; font-size: 0.875rem; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
-            <i class="bi bi-check-circle"></i> Approvals Awaiting Your Review (<?= count($pendingApprovals) ?>)
-        </h6>
-        <div style="overflow-x: auto;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-                <thead style="background: #f5f5f5;">
-                    <tr>
-                        <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= dashboardSortLink('ref', 'Ref #') ?></th>
-                        <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= dashboardSortLink('description', 'Description') ?></th>
-                        <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Category</th>
-                        <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= dashboardSortLink('requested_by', 'Requestor') ?></th>
-                        <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Unit</th>
-                        <th style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= dashboardSortLink('amount', 'Amount') ?></th>
-                        <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= dashboardSortLink('status', 'Stage') ?></th>
-                        <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= dashboardSortLink('date', 'Age') ?></th>
-                        <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Due (SLA)</th>
-                        <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Risk</th>
-                        <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($pendingApprovals as $approval):
-                    $age = (int)$approval['_age_days'];
-                    $sla = $approval['_sla'];
-                    $slaDate = date('d M Y', strtotime($approval['created_at'] . ' +' . $sla['sla_days'] . ' days'));
-                    $ageStyle = $sla['risk_level'] === 'normal' ? 'color:#555;' : 'color:#e74c3c;font-weight:700;';
-                ?>
-                    <tr style="border-bottom: 1px solid #f0f0f0;">
-                        <td style="padding: 0.75rem 1rem; font-weight: 600; color: #333;"><?= htmlspecialchars($approval['request_number']) ?></td>
-                        <td style="padding: 0.75rem 1rem; color: #666; max-width: 220px;"><?= htmlspecialchars(dashboardShortText($approval['description'] ?? '')) ?></td>
-                        <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($approval['request_type']) ?></td>
-                        <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($approval['requestor_name'] ?? 'N/A') ?></td>
-                        <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($approval['branch_name'] ?? 'N/A') ?></td>
-                        <td style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333;"><?= htmlspecialchars(normalizeCurrency($approval['currency'] ?? 'JMD')) ?> <?= number_format((float)$approval['estimated_value'], 2) ?></td>
-                        <td style="padding: 0.75rem 1rem;"><?= statusBadge($approval['request_status']) ?></td>
-                        <td style="padding: 0.75rem 1rem; text-align: center; font-size:0.8rem; <?= $ageStyle ?>"><?= $age ?>d</td>
-                        <td style="padding: 0.75rem 1rem; text-align: center; color: #888; font-size:0.8rem;"><?= $slaDate ?></td>
-                        <td style="padding: 0.75rem 1rem; text-align: center;"><?= pendingActionRiskBadge($sla) ?></td>
-                        <td style="padding: 0.75rem 1rem; text-align: center;">
-                            <a href="/procurement/approve.php?id=<?= $approval['request_id'] ?>"
-                               style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.75rem; font-weight: 600;">
-                               Review
-                            </a>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-    <?php endif; ?>
+        if ($isWorkflow) {
+            $status     = strtoupper($row['request_status']);
+            $actionInfo = $statusActionMap[$status] ?? ['label' => 'View', 'color' => '#6c757d', 'icon' => 'bi-eye', 'href_tpl' => '/procurement/view.php?id={id}'];
+            $href       = actionHref($status, (int)$row['request_id'], $statusActionMap, isset($row['rfq_id']) ? (int)$row['rfq_id'] : null);
+        } else {
+            $href = '/procurement/approve.php?id=' . (int)$row['request_id'];
+        }
+        ?>
+        <tr>
+            <th scope="row"><?= htmlspecialchars($row['request_number']) ?></th>
+            <td class="ui-cell-wrap"><?= htmlspecialchars(dashboardShortText($row['description'] ?? '')) ?></td>
+            <td><?= htmlspecialchars($row['request_type']) ?></td>
+            <td><?= htmlspecialchars($row['requestor_name'] ?? 'N/A') ?></td>
+            <td><?= htmlspecialchars($row['branch_name'] ?? 'N/A') ?></td>
+            <td class="ui-num"><?= htmlspecialchars(normalizeCurrency($row['currency'] ?? 'JMD')) ?> <?= number_format((float)$row['estimated_value'], 2) ?></td>
+            <td>
+                <?php if ($isWorkflow): ?>
+                    <?= ui_badge($status, 'warning') ?>
+                <?php else: ?>
+                    <?= statusBadge($row['request_status']) ?>
+                <?php endif; ?>
+            </td>
+            <td class="ui-num<?= $ageCls ?>"><?= $age ?>d</td>
+            <td class="ui-num ui-muted-cell"><?= $slaDate ?></td>
+            <td><?= pendingActionRiskBadge($sla) ?></td>
+            <td>
+                <a class="ui-action ui-action--sm ui-action--primary ui-nowrap" href="<?= htmlspecialchars($href) ?>">
+                    <?php if ($isWorkflow): ?>
+                        <i class="bi <?= htmlspecialchars($actionInfo['icon']) ?>" aria-hidden="true"></i>
+                        <span><?= htmlspecialchars($actionInfo['label']) ?></span>
+                    <?php else: ?>
+                        <span>Review</span>
+                    <?php endif; ?>
+                </a>
+            </td>
+        </tr>
+        <?php
+    }
+};
 
-    <?php if (!empty($workflowActions)): ?>
-    <!-- ── Section 2: Workflow-stage actions ── -->
-    <div>
-        <h6 style="margin: 0 0 1rem 0; font-size: 0.875rem; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
-            <i class="bi bi-arrow-repeat"></i> Workflow Actions Required (<?= count($workflowActions) ?>)
-        </h6>
-        <div style="overflow-x: auto;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-                <thead style="background: #f5f5f5;">
-                    <tr>
-                        <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= dashboardSortLink('ref', 'Ref #') ?></th>
-                        <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= dashboardSortLink('description', 'Description') ?></th>
-                        <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Category</th>
-                        <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= dashboardSortLink('requested_by', 'Requestor') ?></th>
-                        <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Unit</th>
-                        <th style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= dashboardSortLink('amount', 'Amount') ?></th>
-                        <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= dashboardSortLink('status', 'Stage') ?></th>
-                        <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;"><?= dashboardSortLink('date', 'Age') ?></th>
-                        <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Due (SLA)</th>
-                        <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Risk</th>
-                        <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Next Action</th>
-                        <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Go</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($workflowActions as $action):
-                    $status     = strtoupper($action['request_status']);
-                    $actionInfo = $statusActionMap[$status] ?? ['label' => 'View', 'color' => '#6c757d', 'icon' => 'bi-eye', 'href_tpl' => '/procurement/view.php?id={id}'];
-                    $href       = actionHref($status, (int)$action['request_id'], $statusActionMap, isset($action['rfq_id']) ? (int)$action['rfq_id'] : null);
-                    $age        = (int)$action['_age_days'];
-                    $sla        = $action['_sla'];
-                    $slaDate    = date('d M Y', strtotime($action['created_at'] . ' +' . $sla['sla_days'] . ' days'));
-                    $ageStyle   = $sla['risk_level'] === 'normal' ? 'color:#555;' : 'color:#e74c3c;font-weight:700;';
-                ?>
-                    <tr style="border-bottom: 1px solid #f0f0f0;">
-                        <td style="padding: 0.75rem 1rem; font-weight: 600; color: #333;"><?= htmlspecialchars($action['request_number']) ?></td>
-                        <td style="padding: 0.75rem 1rem; color: #666; max-width: 220px;"><?= htmlspecialchars(dashboardShortText($action['description'] ?? '')) ?></td>
-                        <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($action['request_type']) ?></td>
-                        <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($action['requestor_name'] ?? 'N/A') ?></td>
-                        <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($action['branch_name'] ?? 'N/A') ?></td>
-                        <td style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333;"><?= htmlspecialchars(normalizeCurrency($action['currency'] ?? 'JMD')) ?> <?= number_format((float)$action['estimated_value'], 2) ?></td>
-                        <td style="padding: 0.75rem 1rem;">
-                            <span style="background:#fff3cd; color:#856404; padding:0.25rem 0.5rem; border-radius:6px; font-size:0.75rem; font-weight:600;"><?= htmlspecialchars($status) ?></span>
-                        </td>
-                        <td style="padding: 0.75rem 1rem; text-align: center; font-size:0.8rem; <?= $ageStyle ?>"><?= $age ?>d</td>
-                        <td style="padding: 0.75rem 1rem; text-align: center; color: #888; font-size:0.8rem;"><?= $slaDate ?></td>
-                        <td style="padding: 0.75rem 1rem; text-align: center;"><?= pendingActionRiskBadge($sla) ?></td>
-                        <td style="padding: 0.75rem 1rem; text-align: center; white-space:nowrap;">
-                            <i class="bi <?= $actionInfo['icon'] ?>" style="color: <?= $actionInfo['color'] ?>; margin-right:0.25rem;"></i><?= htmlspecialchars($actionInfo['label']) ?>
-                        </td>
-                        <td style="padding: 0.75rem 1rem; text-align: center;">
-                            <a href="<?= htmlspecialchars($href) ?>"
-                               style="background: <?= $actionInfo['color'] ?>; color: white; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.75rem; font-weight: 600;">
-                               Go
-                            </a>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-    <?php endif; ?>
-</div>
+$pendingActionHeadings = static function (bool $isWorkflow): void {
+    ?>
+    <tr>
+        <th scope="col"><?= dashboardSortLink('ref', 'Ref #') ?></th>
+        <th scope="col"><?= dashboardSortLink('description', 'Description') ?></th>
+        <th scope="col">Category</th>
+        <th scope="col"><?= dashboardSortLink('requested_by', 'Requestor') ?></th>
+        <th scope="col">Unit</th>
+        <th scope="col" class="ui-num"><?= dashboardSortLink('amount', 'Amount') ?></th>
+        <th scope="col"><?= dashboardSortLink('status', 'Stage') ?></th>
+        <th scope="col" class="ui-num"><?= dashboardSortLink('date', 'Age') ?></th>
+        <th scope="col" class="ui-num">Due (SLA)</th>
+        <th scope="col">Risk</th>
+        <th scope="col">Next Action</th>
+    </tr>
+    <?php
+};
+
+$pendingActionsTools = '';
+if ($totalPendingActions > 0) {
+    $pendingActionsTools = ui_badge((string)$totalPendingActions, 'danger') . ' ';
+    $escalationProfile = WorkflowConfigurationService::getEscalationPercentages($pdo);
+    $pendingActionsTools .= '<span class="ui-hint">SLA alerts: '
+        . (int)$escalationProfile['warning'] . '% / '
+        . (int)$escalationProfile['overdue'] . '% / '
+        . (int)$escalationProfile['critical'] . '%</span>';
+}
+
+ui_card_open([
+    'title' => 'Requests Requiring Action',
+    'icon'  => 'bi-hourglass-split',
+    'tools' => $pendingActionsTools,
+]);
+
+if ($totalPendingActions === 0) {
+    ui_empty('You\'re all caught up! No requests currently require your action.', 'bi-check2-circle');
+}
+
+if (!empty($pendingApprovals)) {
+    ui_section_open('Approvals Awaiting Your Review (' . count($pendingApprovals) . ')', true, 'bi-check-circle');
+    ui_table_toolbar('pending-approvals-table', [
+        'columns'     => true,
+        'export'      => true,
+        'placeholder' => 'Search approvals…',
+    ]);
+    ui_table_open('pending-approvals-table', [
+        'paginate' => true,
+        'perPage'  => 10,
+        'label'    => 'Approvals awaiting your review',
+    ]);
+    echo '<thead>';
+    $pendingActionHeadings(false);
+    echo '</thead><tbody>';
+    $renderPendingActionRows($pendingApprovals, false);
+    echo '</tbody>';
+    ui_table_close('pending-approvals-table');
+    ui_section_close();
+}
+
+if (!empty($workflowActions)) {
+    ui_section_open('Workflow Actions Required (' . count($workflowActions) . ')', true, 'bi-arrow-repeat');
+    ui_table_toolbar('workflow-actions-table', [
+        'columns'     => true,
+        'export'      => true,
+        'placeholder' => 'Search workflow actions…',
+    ]);
+    ui_table_open('workflow-actions-table', [
+        'paginate' => true,
+        'perPage'  => 10,
+        'label'    => 'Workflow actions required',
+    ]);
+    echo '<thead>';
+    $pendingActionHeadings(true);
+    echo '</thead><tbody>';
+    $renderPendingActionRows($workflowActions, true);
+    echo '</tbody>';
+    ui_table_close('workflow-actions-table');
+    ui_section_close();
+}
+
+ui_card_close();

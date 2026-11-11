@@ -20,80 +20,134 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$_SESSION['user_id']]);
 $rfqs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+require_once $_SERVER['DOCUMENT_ROOT'].'/includes/ui.php';
+
+// Pre-compute compliance per RFQ so the markup stays presentational.
+$committeeStmt = $pdo->prepare("SELECT COUNT(*) FROM rfq_evaluation_committee WHERE rfq_id = ?");
+$reportStmt    = $pdo->prepare("SELECT COUNT(*) FROM rfq_evaluation_reports WHERE rfq_id = ?");
+$compliantCount = 0;
+foreach ($rfqs as $i => $r) {
+    $committeeStmt->execute([$r['rfq_id']]);
+    $committeeCount = (int)$committeeStmt->fetchColumn();
+    $reportStmt->execute([$r['rfq_id']]);
+    $reportCount = (int)$reportStmt->fetchColumn();
+
+    $rfqs[$i]['_committee_count'] = $committeeCount;
+    $rfqs[$i]['_report_count']    = $reportCount;
+    $rfqs[$i]['_compliant']       = ($committeeCount >= 3 && $reportCount > 0);
+    if ($rfqs[$i]['_compliant']) {
+        $compliantCount++;
+    }
+}
 ?>
+<div class="ui-page">
+<?php
+ui_page_header([
+    'title'       => 'Evaluation Committee Dashboard',
+    'subtitle'    => 'RFQs assigned to you for technical and financial evaluation',
+    'icon'        => 'bi-clipboard-data',
+    'breadcrumbs' => [
+        ['label' => 'Home', 'href' => '/dashboard/index.php'],
+        ['label' => 'Evaluation Committee'],
+    ],
+    'actions' => [
+        ['label' => 'All RFQs', 'href' => '/rfq/list.php', 'icon' => 'bi-list-ul'],
+        ['label' => 'Refresh', 'href' => '/dashboard/evaluation.php', 'icon' => 'bi-arrow-clockwise'],
+    ],
+]);
 
-<div style="max-width: 1400px; margin: 2rem auto; padding: 0 1rem;">
-    <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1rem;">
-        <div style="display: flex; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-          <span style="font-size: 1.5em; margin-right: 1rem;">📊</span>
-            <h4 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: #333;">Evaluation Committee <span style="background: #333; color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;">Dashboard</span></h4>
-        </div>
+ui_kpi_grid([
+    [
+        'label'   => 'RFQs Pending Evaluation',
+        'value'   => (string)count($rfqs),
+        'icon'    => 'bi-hourglass-split',
+        'variant' => 'blue',
+    ],
+    [
+        'label'   => 'Compliance Ready',
+        'value'   => (string)$compliantCount,
+        'meta'    => '3+ members and a report filed',
+        'icon'    => 'bi-patch-check',
+        'variant' => 'green',
+    ],
+    [
+        'label'   => 'Needs Attention',
+        'value'   => (string)(count($rfqs) - $compliantCount),
+        'meta'    => 'Committee or report incomplete',
+        'icon'    => 'bi-exclamation-triangle',
+        'variant' => (count($rfqs) - $compliantCount) > 0 ? 'red' : 'slate',
+    ],
+]);
 
-        <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1.5rem;">
-            <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-                <h6 style="margin: 0; font-size: 1rem; font-weight: 700; color: #333;">⏳ RFQs Pending Evaluation <span style="background: #333; color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;"><?= count($rfqs) ?></span></h6>
-            </div>
+ui_tabs('evaluation', [
+    ['id' => 'rfqs',    'label' => 'RFQs Pending Evaluation', 'icon' => 'bi-hourglass-split', 'count' => count($rfqs)],
+    ['id' => 'actions', 'label' => 'Pending Actions',         'icon' => 'bi-check2-square'],
+    ['id' => 'insights','label' => 'Insights',                'icon' => 'bi-graph-up'],
+]);
 
-            <?php if (empty($rfqs)): ?>
-                <div style="text-align: center; color: #999; padding: 2rem 0;">
-                    <span style="font-size: 1.5em;">✅</span><br>
-                    <span style="display: block; margin-top: 0.5rem;">No RFQs in evaluation stage</span>
-                </div>
-            <?php else: ?>
-                <div style="overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-                        <thead style="background: #f5f5f5;">
-                            <tr>
-                                <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">RFQ #</th>
-                                <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Request #</th>
-                                <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Status</th>
-                                <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($rfqs as $r): ?>
-                                <?php
-                                    /* Committee Count */
-                                    $stmt = $pdo->prepare("SELECT COUNT(*) FROM rfq_evaluation_committee WHERE rfq_id = ?");
-                                    $stmt->execute([$r['rfq_id']]);
-                                    $committeeCount = $stmt->fetchColumn();
-                                    /* Evaluation Report Check */
-                                    $stmt = $pdo->prepare("SELECT COUNT(*) FROM rfq_evaluation_reports WHERE rfq_id = ?");
-                                    $stmt->execute([$r['rfq_id']]);
-                                    $reportCount = $stmt->fetchColumn();
-                                    $compliant = ($committeeCount >= 3 && $reportCount > 0);
-                                ?>
-                                <tr style="border-bottom: 1px solid #f0f0f0;">
-                                    <td style="padding: 0.75rem 1rem; font-weight: 600; color: #333;"><?= htmlspecialchars($r['rfq_number']) ?></td>
-                                    <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($r['request_number']) ?></td>
-                                    <td style="padding: 0.75rem 1rem; text-align: center;">
-                                        <?php if (!$compliant): ?>
-                                            <span style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; display: inline-block;">❌ Non-Compliant</span>
-                                        <?php else: ?>
-                                            <span style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; display: inline-block;">✅ Compliant</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td style="padding: 0.75rem 1rem; text-align: center;">
-                                        <a href="/rfq/view.php?id=<?= $r['rfq_id'] ?>" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.75rem; font-weight: 600; display: inline-block; transition: transform 0.3s ease;">Evaluate</a>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
-        </div>
+ui_tabpanel_open('evaluation', 'rfqs', true);
+ui_card_open(['title' => 'RFQs Pending Evaluation', 'icon' => 'bi-hourglass-split', 'flush' => true]);
+if (empty($rfqs)) {
+    echo '<div class="ui-card__pad">';
+    ui_empty('No RFQs in evaluation stage.', 'bi-check2-circle');
+    echo '</div>';
+} else {
+    ui_table_toolbar('evaluation-rfqs-table', [
+        'columns'     => true,
+        'export'      => true,
+        'placeholder' => 'Search RFQs…',
+    ]);
+    ui_table_open('evaluation-rfqs-table', [
+        'paginate' => true,
+        'perPage'  => 10,
+        'label'    => 'RFQs pending evaluation',
+    ]);
+    ?>
+    <thead>
+      <tr>
+        <th scope="col">RFQ #</th>
+        <th scope="col">Request #</th>
+        <th scope="col">RFQ Status</th>
+        <th scope="col" class="ui-num">Committee</th>
+        <th scope="col" class="ui-num">Reports</th>
+        <th scope="col">Compliance</th>
+        <th scope="col">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($rfqs as $r): ?>
+      <tr>
+        <th scope="row"><?= htmlspecialchars($r['rfq_number']) ?></th>
+        <td><?= htmlspecialchars($r['request_number']) ?></td>
+        <td><?= ui_status_badge($r['rfq_status']) ?></td>
+        <td class="ui-num"><?= (int)$r['_committee_count'] ?></td>
+        <td class="ui-num"><?= (int)$r['_report_count'] ?></td>
+        <td><?= $r['_compliant'] ? ui_badge('Compliant', 'success') : ui_badge('Non-Compliant', 'danger') ?></td>
+        <td>
+          <a class="ui-action ui-action--sm ui-action--primary" href="/rfq/view.php?id=<?= (int)$r['rfq_id'] ?>">
+            <i class="bi bi-clipboard-check" aria-hidden="true"></i><span>Evaluate</span>
+          </a>
+        </td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+    <?php
+    ui_table_close('evaluation-rfqs-table');
+}
+ui_card_close();
+ui_tabpanel_close();
 
-        <!-- Pending Actions -->
-        <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
-          <?php include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/pending_actions.php'; ?>
-        </div>
+ui_tabpanel_open('evaluation', 'actions');
+include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/pending_actions.php';
+ui_tabpanel_close();
 
-        <!-- Additional Widgets -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem;">
-          <?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/top_vendors.php"; ?>
-          <?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/pipeline.php"; ?>
-        </div>
-    </div>
+ui_tabpanel_open('evaluation', 'insights');
+echo '<div class="ui-grid ui-grid--2">';
+include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/top_vendors.php';
+include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/pipeline.php';
+echo '</div>';
+ui_tabpanel_close();
+?>
 </div>
 <?php require_once $_SERVER['DOCUMENT_ROOT'].'/includes/footer.php'; ?>

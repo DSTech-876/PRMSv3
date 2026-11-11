@@ -332,6 +332,42 @@ a:hover { color: var(--dgc-green-dark); }
 /* Children are wrapped so collapsing can animate cleanly */
 .sidebar-group-body { overflow: hidden; }
 
+/* Sidebar quick filter -------------------------------------------------- */
+.sidebar-filter__control { position: relative; }
+.sidebar-filter__icon {
+  position: absolute;
+  top: 50%;
+  left: .55rem;
+  transform: translateY(-50%);
+  font-size: .8rem;
+  color: rgba(255, 255, 255, .55);
+  pointer-events: none;
+}
+.sidebar-filter__input {
+  width: 100%;
+  padding: .32rem .5rem .32rem 1.75rem;
+  font-size: .78rem;
+  color: #fff;
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 7px;
+}
+.sidebar-filter__input::placeholder { color: rgba(255, 255, 255, .5); }
+.sidebar-filter__input:focus {
+  outline: 2px solid rgba(255, 255, 255, .65);
+  outline-offset: 1px;
+  background: rgba(255, 255, 255, .16);
+}
+.sidebar-filter__input::-webkit-search-cancel-button { filter: invert(1); }
+.sidebar-filter__status {
+  margin: .3rem 0 0;
+  font-size: .68rem;
+  color: rgba(255, 255, 255, .6);
+}
+.sidebar-filter__status:empty { display: none; }
+.sidebar-link.is-filtered-out { display: none !important; }
+.nav-item.is-filtered-out { display: none !important; }
+
 @media (prefers-reduced-motion: reduce) {
   .sidebar-group-items { transition: none; }
 }

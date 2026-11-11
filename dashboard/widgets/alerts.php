@@ -3,6 +3,7 @@ if (!isset($pdo)) {
 require_once __DIR__.'/_init.php';
 
 }
+require_once dirname(__DIR__, 2) . '/includes/ui.php';
 
 
 /* ===============================
@@ -41,7 +42,7 @@ $alerts = [];
 if ($outstanding > 100000) {
   $alerts[] = [
     'type' => 'danger',
-    'icon' => '💰',
+    'icon' => 'bi-cash-stack',
     'text' => 'Outstanding balance exceeds $100,000',
     'link' => '/invoice/list.php'
   ];
@@ -50,7 +51,7 @@ if ($outstanding > 100000) {
 if ($openPOs >= 10) {
   $alerts[] = [
     'type' => 'warning',
-    'icon' => '📑',
+    'icon' => 'bi-file-earmark-text',
     'text' => "There are $openPOs open purchase orders",
     'link' => '/po/list.php?status=Open'
   ];
@@ -59,82 +60,36 @@ if ($openPOs >= 10) {
 if ($unpaidInvoices >= 5) {
   $alerts[] = [
     'type' => 'danger',
-    'icon' => '⏰',
+    'icon' => 'bi-clock-history',
     'text' => "$unpaidInvoices unpaid invoices require attention",
     'link' => '/invoice/list.php?status=Unpaid'
   ];
 }
-?>
 
-<style>
-    .alert-widget {
-        background: white;
-        border-radius: 12px;
-        border: 1px solid #e0e0e0;
-        padding: 1.5rem;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    }
-    .alert-item {
-        padding: 1rem;
-        border-radius: 8px;
-        margin-bottom: 0.75rem;
-        text-decoration: none !important;
-        color: white;
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        transition: all 0.3s ease;
-    }
-    .alert-item:last-child {
-        margin-bottom: 0;
-    }
-    .alert-item:hover {
-        transform: translateX(4px);
-    }
-    .alert-danger-gradient {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        box-shadow: 0 4px 12px rgba(245, 87, 108, 0.3);
-    }
-    .alert-warning-gradient {
-        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-        box-shadow: 0 4px 12px rgba(250, 112, 154, 0.3);
-    }
-    .alert-success-gradient {
-        background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-        box-shadow: 0 4px 12px rgba(67, 233, 123, 0.3);
-    }
-    .alert-icon {
-        font-size: 1.5rem;
-        min-width: 2rem;
-    }
-    .alert-content {
-        flex: 1;
-        font-weight: 500;
-    }
-</style>
+ui_card_open([
+    'title' => 'System Alerts',
+    'icon'  => 'bi-exclamation-triangle',
+    'tools' => $alerts ? ui_badge(count($alerts) . ' active', 'danger') : ui_badge('All clear', 'success'),
+]);
 
-<div class="alert-widget">
-    <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-        <h5 style="margin: 0; font-weight: 600; color: #1a1a1a;"><span style="font-size: 1.3rem;">🚨</span> System Alerts</h5>
+if (empty($alerts)) {
+    ?>
+    <div class="ui-alert ui-alert--success">
+        <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+        <span>All systems operating normally</span>
     </div>
-
-    <?php if (empty($alerts)): ?>
-        <div class="alert-item alert-success-gradient">
-            <div class="alert-icon">✅</div>
-            <div class="alert-content">All systems operating normally</div>
-        </div>
-    <?php else: ?>
-        <?php foreach ($alerts as $a): 
-            $alertClass = match($a['type']) {
-                'warning' => 'alert-warning-gradient',
-                default => 'alert-danger-gradient'
-            };
+    <?php
+} else {
+    foreach ($alerts as $a) {
+        $variant = $a['type'] === 'warning' ? 'warning' : 'danger';
         ?>
-            <a href="<?= htmlspecialchars($a['link']) ?>" class="alert-item <?= $alertClass ?>">
-                <div class="alert-icon"><?= $a['icon'] ?></div>
-                <div class="alert-content"><?= htmlspecialchars($a['text']) ?></div>
-                <div style="font-size: 1.2rem; opacity: 0.8;">→</div>
-            </a>
-        <?php endforeach; ?>
-    <?php endif; ?>
-</div>
+        <a href="<?= ui_e($a['link']) ?>" class="ui-alert ui-alert--<?= ui_e($variant) ?> ui-alert--link">
+            <i class="bi <?= ui_e($a['icon']) ?>" aria-hidden="true"></i>
+            <span><?= ui_e($a['text']) ?></span>
+            <i class="bi bi-chevron-right ui-alert__chevron" aria-hidden="true"></i>
+        </a>
+        <?php
+    }
+}
+
+ui_card_close();

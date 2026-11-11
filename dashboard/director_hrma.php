@@ -41,144 +41,199 @@ $stmt->execute();
 $branchRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $branchPending = count($branchRequests);
+
+require_once $_SERVER['DOCUMENT_ROOT'].'/includes/ui.php';
+
+/* ─── Organisation-wide monitoring panel (read-only) ─── */
+$monitorStmt = $pdo->prepare("
+    SELECT
+        pr.request_id,
+        pr.request_number,
+        pr.request_type,
+        pr.status,
+        pr.estimated_value,
+        pr.currency,
+        pr.created_at,
+        b.branch_name,
+        u.full_name AS requestor_name
+    FROM procurement_requests pr
+    LEFT JOIN branches b ON pr.branch_id = b.branch_id
+    LEFT JOIN users   u ON pr.created_by = u.user_id
+    WHERE UPPER(pr.status) NOT IN ('COMPLETED','CANCELLED','DECLINED')
+    ORDER BY pr.created_at DESC
+    LIMIT 50
+");
+$monitorStmt->execute();
+$monitorRows = $monitorStmt->fetchAll(PDO::FETCH_ASSOC);
+
+$branchValue = array_sum(array_map(static fn($r) => (float)$r['estimated_value'], $branchRequests));
 ?>
+<div class="ui-page">
+<?php
+ui_page_header([
+    'title'       => 'Director HRM&A Dashboard',
+    'subtitle'    => 'Approve procurement requests for the HRM&A branch and monitor organisation-wide activity',
+    'icon'        => 'bi-building-gear',
+    'breadcrumbs' => [
+        ['label' => 'Home', 'href' => '/dashboard/index.php'],
+        ['label' => 'Director HRM&A'],
+    ],
+    'actions' => [
+        ['label' => 'All Requests', 'href' => '/procurement/list.php', 'icon' => 'bi-list-ul'],
+        ['label' => 'Approval Queue', 'href' => '/dashboard/approval_queue.php', 'icon' => 'bi-clock-history'],
+    ],
+]);
 
-<div style="max-width: 1400px; margin: 2rem auto; padding: 0 1rem;">
-    <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1rem;">
-        <div style="display: flex; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-            <span style="font-size: 1.75em; margin-right: 1rem;">🏢</span>
-            <div>
-                <h2 style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #333;">Director HRM&A Dashboard</h2>
-                <small style="color: #999; font-size: 0.875rem; display: block; margin-top: 0.25rem;">Approve procurement requests for HRM&A branch and other procurement documents.</small>
-            </div>
-        </div>
+ui_kpi_grid([
+    [
+        'label'   => 'Approvals Awaiting You',
+        'value'   => number_format($branchPending),
+        'meta'    => 'Requests pending your approval',
+        'icon'    => 'bi-inbox',
+        'variant' => $branchPending > 0 ? 'amber' : 'green',
+    ],
+    [
+        'label'   => 'Value Awaiting Approval',
+        'value'   => 'JMD ' . number_format($branchValue, 0),
+        'icon'    => 'bi-cash-stack',
+        'variant' => 'blue',
+    ],
+    [
+        'label'   => 'Active Requests (org-wide)',
+        'value'   => number_format(count($monitorRows)),
+        'meta'    => 'Read-only monitoring',
+        'icon'    => 'bi-eye',
+        'variant' => 'purple',
+    ],
+]);
 
-        <!-- KPI Card -->
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;">
-            <h6 style="margin: 0; font-weight: 600; opacity: 0.9;">📊 Approvals Awaiting You</h6>
-            <h3 style="margin: 0.5rem 0 0 0; font-size: 2.5rem; font-weight: 700;"><?= $branchPending ?></h3>
-            <small style="opacity: 0.9;">Requests Pending Your Approval</small>
-        </div>
+ui_tabs('hrma', [
+    ['id' => 'approvals', 'label' => 'My Approvals',    'icon' => 'bi-check2-square', 'count' => $branchPending],
+    ['id' => 'actions',   'label' => 'Pending Actions', 'icon' => 'bi-hourglass-split'],
+    ['id' => 'monitor',   'label' => 'Org Monitoring',  'icon' => 'bi-eye', 'count' => count($monitorRows)],
+    ['id' => 'insights',  'label' => 'Insights',        'icon' => 'bi-graph-up'],
+]);
 
-        <!-- Director HRM&A Approvals -->
-        <?php if ($branchPending > 0): ?>
-        <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1.5rem;">
-            <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-                <h6 style="margin: 0; font-size: 1rem; font-weight: 700; color: #333;">📋 Approvals Requiring Your Action <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;"><?= $branchPending ?></span></h6>
-            </div>
-            <p style="color: #666; font-size: 0.875rem; margin-bottom: 1rem;"><i class="bi bi-info-circle"></i> These requests are waiting on your approval stage, including over-threshold requests already approved by the HOD.</p>
-            <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-                    <thead style="background: #f5f5f5;">
-                        <tr>
-                            <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Request #</th>
-                            <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Branch</th>
-                            <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Stage</th>
-                            <th style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Value</th>
-                            <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Date Submitted</th>
-                            <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    <?php foreach ($branchRequests as $row): ?>
-                        <tr style="border-bottom: 1px solid #f0f0f0;">
-                            <td style="padding: 0.75rem 1rem; font-weight: 600; color: #333;"><?= htmlspecialchars($row['request_number']) ?></td>
-                            <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($row['branch_name'] ?? 'N/A') ?></td>
-                            <td style="padding: 0.75rem 1rem;"><?= statusBadge($row['status']) ?></td>
-                            <td style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333;"><?= htmlspecialchars(normalizeCurrency($row['currency'] ?? 'JMD')) ?> <?= number_format((float)$row['estimated_value'], 2) ?></td>
-                            <td style="padding: 0.75rem 1rem; color: #999; font-size: 0.8rem;"><?= date('d M Y', strtotime($row['created_at'])) ?></td>
-                            <td style="padding: 0.75rem 1rem; text-align: center;">
-                                <a href="/procurement/view.php?id=<?= $row['request_id'] ?>" style="background: white; border: 1px solid #667eea; color: #667eea; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.75rem; font-weight: 600; display: inline-block; margin-right: 0.5rem; transition: all 0.3s ease;">Review</a>
-                                <a href="/procurement/approve.php?id=<?= $row['request_id'] ?>" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.75rem; font-weight: 600; display: inline-block; transition: all 0.3s ease;">Approve</a>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <?php endif; ?>
+ui_tabpanel_open('hrma', 'approvals', true);
+ui_card_open([
+    'title'    => 'Approvals Requiring Your Action',
+    'subtitle' => 'Includes over-threshold requests already approved by the HOD.',
+    'icon'     => 'bi-check2-square',
+    'flush'    => true,
+]);
+if ($branchPending === 0) {
+    echo '<div class="ui-card__pad">';
+    ui_empty('No requests are waiting on your approval.', 'bi-check2-circle');
+    echo '</div>';
+} else {
+    ui_table_toolbar('hrma-approvals-table', [
+        'columns'     => true,
+        'export'      => true,
+        'placeholder' => 'Search requests…',
+    ]);
+    ui_table_open('hrma-approvals-table', [
+        'paginate' => true,
+        'perPage'  => 10,
+        'label'    => 'Approvals requiring your action',
+    ]);
+    ?>
+    <thead>
+      <tr>
+        <th scope="col">Request #</th>
+        <th scope="col">Branch</th>
+        <th scope="col">Stage</th>
+        <th scope="col" class="ui-num">Value</th>
+        <th scope="col">Date Submitted</th>
+        <th scope="col">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($branchRequests as $row): ?>
+      <tr>
+        <th scope="row"><?= htmlspecialchars($row['request_number']) ?></th>
+        <td><?= htmlspecialchars($row['branch_name'] ?? 'N/A') ?></td>
+        <td><?= statusBadge($row['status']) ?></td>
+        <td class="ui-num ui-num--strong"><?= htmlspecialchars(normalizeCurrency($row['currency'] ?? 'JMD')) ?> <?= number_format((float)$row['estimated_value'], 2) ?></td>
+        <td class="ui-nowrap ui-muted-cell"><?= date('d M Y', strtotime((string)$row['created_at'])) ?></td>
+        <td class="ui-nowrap">
+          <a class="ui-action ui-action--sm" href="/procurement/view.php?id=<?= (int)$row['request_id'] ?>"><i class="bi bi-eye" aria-hidden="true"></i><span>Review</span></a>
+          <a class="ui-action ui-action--sm ui-action--primary" href="/procurement/approve.php?id=<?= (int)$row['request_id'] ?>"><i class="bi bi-check2" aria-hidden="true"></i><span>Approve</span></a>
+        </td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+    <?php
+    ui_table_close('hrma-approvals-table');
+}
+ui_card_close();
+ui_tabpanel_close();
 
-        <!-- Pending Actions Widget -->
-        <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
-            <?php
-            /* ─── Organisation-wide monitoring panel (read-only) ─── */
-            $monitorStmt = $pdo->prepare("
-                SELECT
-                    pr.request_id,
-                    pr.request_number,
-                    pr.request_type,
-                    pr.status,
-                    pr.estimated_value,
-                    pr.currency,
-                    pr.created_at,
-                    b.branch_name,
-                    u.full_name AS requestor_name
-                FROM procurement_requests pr
-                LEFT JOIN branches b ON pr.branch_id = b.branch_id
-                LEFT JOIN users   u ON pr.created_by = u.user_id
-                WHERE UPPER(pr.status) NOT IN ('COMPLETED','CANCELLED','DECLINED')
-                ORDER BY pr.created_at DESC
-                LIMIT 50
-            ");
-            $monitorStmt->execute();
-            $monitorRows = $monitorStmt->fetchAll(PDO::FETCH_ASSOC);
-            ?>
-            <?php if (!empty($monitorRows)): ?>
-            <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-                <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-                    <h6 style="margin: 0; font-size: 1rem; font-weight: 700; color: #333;">
-                        <i class="bi bi-eye"></i> Organisation-wide Request Monitoring
-                        <span style="background: #6c757d; color: white; padding: 0.25rem 0.6rem; border-radius: 20px; font-size: 0.75rem; margin-left: 0.5rem;"><?= count($monitorRows) ?></span>
-                        <small style="font-weight:400; color:#999; margin-left:0.5rem; font-size:0.75rem;">(Read-only — monitoring access only)</small>
-                    </h6>
-                </div>
-                <div style="overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-                        <thead style="background: #f5f5f5;">
-                            <tr>
-                                <th style="padding: 0.6rem 0.9rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Ref #</th>
-                                <th style="padding: 0.6rem 0.9rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Category</th>
-                                <th style="padding: 0.6rem 0.9rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Requestor</th>
-                                <th style="padding: 0.6rem 0.9rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Unit</th>
-                                <th style="padding: 0.6rem 0.9rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Stage</th>
-                                <th style="padding: 0.6rem 0.9rem; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Value</th>
-                                <th style="padding: 0.6rem 0.9rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Date</th>
-                                <th style="padding: 0.6rem 0.9rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">View</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        <?php foreach ($monitorRows as $mr): ?>
-                            <tr style="border-bottom: 1px solid #f0f0f0;">
-                                <td style="padding: 0.6rem 0.9rem; font-weight: 600; color: #333;"><?= htmlspecialchars($mr['request_number']) ?></td>
-                                <td style="padding: 0.6rem 0.9rem; color: #666;"><?= htmlspecialchars($mr['request_type']) ?></td>
-                                <td style="padding: 0.6rem 0.9rem; color: #666;"><?= htmlspecialchars($mr['requestor_name'] ?? 'N/A') ?></td>
-                                <td style="padding: 0.6rem 0.9rem; color: #666;"><?= htmlspecialchars($mr['branch_name'] ?? 'N/A') ?></td>
-                                <td style="padding: 0.6rem 0.9rem;"><?= statusBadge($mr['status']) ?></td>
-                                <td style="padding: 0.6rem 0.9rem; text-align: right; color: #333;"><?= htmlspecialchars(normalizeCurrency($mr['currency'] ?? 'JMD')) ?> <?= number_format((float)$mr['estimated_value'], 2) ?></td>
-                                <td style="padding: 0.6rem 0.9rem; text-align: center; color: #999; font-size: 0.8rem;"><?= date('d M Y', strtotime($mr['created_at'])) ?></td>
-                                <td style="padding: 0.6rem 0.9rem; text-align: center;">
-                                    <a href="/procurement/view.php?id=<?= $mr['request_id'] ?>"
-                                       style="background: #6c757d; color: white; padding: 0.3rem 0.65rem; border-radius: 6px; text-decoration: none; font-size: 0.75rem; font-weight: 600;">
-                                       View
-                                    </a>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <?php endif; ?>
-            <?php include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/pending_actions.php'; ?>
-        </div>
+ui_tabpanel_open('hrma', 'actions');
+include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/pending_actions.php';
+ui_tabpanel_close();
 
-        <!-- Widgets Row -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem;">
-            <?php include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/kpis.php'; ?>
-            <?php include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/alerts.php'; ?>
-        </div>
-    </div>
+ui_tabpanel_open('hrma', 'monitor');
+ui_card_open([
+    'title'    => 'Organisation-wide Request Monitoring',
+    'subtitle' => 'Read-only — monitoring access only.',
+    'icon'     => 'bi-eye',
+    'flush'    => true,
+]);
+if (empty($monitorRows)) {
+    echo '<div class="ui-card__pad">';
+    ui_empty('No active requests to monitor.', 'bi-inbox');
+    echo '</div>';
+} else {
+    ui_table_toolbar('hrma-monitor-table', [
+        'columns'     => true,
+        'export'      => true,
+        'placeholder' => 'Search requests…',
+    ]);
+    ui_table_open('hrma-monitor-table', [
+        'paginate' => true,
+        'perPage'  => 15,
+        'virtual'  => true,
+        'label'    => 'Organisation-wide request monitoring',
+    ]);
+    ?>
+    <thead>
+      <tr>
+        <th scope="col">Ref #</th>
+        <th scope="col">Category</th>
+        <th scope="col">Requestor</th>
+        <th scope="col">Unit</th>
+        <th scope="col">Stage</th>
+        <th scope="col" class="ui-num">Value</th>
+        <th scope="col">Date</th>
+        <th scope="col">View</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($monitorRows as $mr): ?>
+      <tr>
+        <th scope="row"><?= htmlspecialchars($mr['request_number']) ?></th>
+        <td><?= htmlspecialchars($mr['request_type']) ?></td>
+        <td><?= htmlspecialchars($mr['requestor_name'] ?? 'N/A') ?></td>
+        <td><?= htmlspecialchars($mr['branch_name'] ?? 'N/A') ?></td>
+        <td><?= statusBadge($mr['status']) ?></td>
+        <td class="ui-num"><?= htmlspecialchars(normalizeCurrency($mr['currency'] ?? 'JMD')) ?> <?= number_format((float)$mr['estimated_value'], 2) ?></td>
+        <td class="ui-nowrap ui-muted-cell"><?= date('d M Y', strtotime((string)$mr['created_at'])) ?></td>
+        <td><a class="ui-action ui-action--sm" href="/procurement/view.php?id=<?= (int)$mr['request_id'] ?>"><i class="bi bi-eye" aria-hidden="true"></i><span>View</span></a></td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+    <?php
+    ui_table_close('hrma-monitor-table');
+}
+ui_card_close();
+ui_tabpanel_close();
+
+ui_tabpanel_open('hrma', 'insights');
+echo '<div class="ui-grid ui-grid--2">';
+include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/kpis.php';
+include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/alerts.php';
+echo '</div>';
+ui_tabpanel_close();
+?>
 </div>
-
 <?php require_once $_SERVER['DOCUMENT_ROOT'].'/includes/footer.php'; ?>

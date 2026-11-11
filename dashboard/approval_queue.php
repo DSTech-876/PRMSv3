@@ -111,160 +111,169 @@ $statusActionMap = [
 $cntRequests = count($pendingRequests);
 $cntWorkflow = count($workflowActions);
 $totalAll = $cntRequests + $cntWorkflow;
+
+require_once $_SERVER['DOCUMENT_ROOT'].'/includes/ui.php';
 ?>
+<div class="ui-page">
+<?php
+ui_page_header([
+    'title'       => 'Approval Queue',
+    'subtitle'    => 'All pending approvals and workflow actions assigned to your role',
+    'icon'        => 'bi-clock-history',
+    'breadcrumbs' => [
+        ['label' => 'Home', 'href' => '/dashboard/index.php'],
+        ['label' => 'Approval Queue'],
+    ],
+    'actions' => [
+        ['label' => 'Dashboard', 'href' => '/dashboard/index.php', 'icon' => 'bi-speedometer2'],
+    ],
+]);
 
-<div class="container-fluid" style="max-width: 1400px; margin: 2rem auto; padding: 0 1rem;">
+ui_kpi_grid([
+    [
+        'label'   => 'Total Pending',
+        'value'   => number_format($totalAll),
+        'icon'    => 'bi-inboxes',
+        'variant' => $totalAll > 0 ? 'amber' : 'green',
+    ],
+    [
+        'label'   => 'Requests',
+        'value'   => number_format($cntRequests),
+        'meta'    => 'Awaiting your approval',
+        'icon'    => 'bi-file-earmark-text',
+        'variant' => 'blue',
+    ],
+    [
+        'label'   => 'Workflow Actions',
+        'value'   => number_format($cntWorkflow),
+        'meta'    => 'Need attention',
+        'icon'    => 'bi-arrow-repeat',
+        'variant' => 'purple',
+    ],
+]);
 
-<!-- Page Header -->
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h3 class="mb-1"><i class="bi bi-clock-history me-2"></i>Approval Queue</h3>
-        <small class="text-muted">All pending approvals and workflow actions across the system</small>
-    </div>
-    <div class="d-flex gap-2">
-        <span class="badge bg-primary fs-6 py-2 px-3"><?= $totalAll ?> Total Pending</span>
-        <a href="/dashboard/index.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Dashboard</a>
-    </div>
+ui_tabs('queue', [
+    ['id' => 'requests', 'label' => 'Request Approvals', 'icon' => 'bi-file-earmark-text', 'count' => $cntRequests],
+    ['id' => 'workflow', 'label' => 'Workflow Actions',  'icon' => 'bi-arrow-repeat',      'count' => $cntWorkflow],
+]);
+
+ui_tabpanel_open('queue', 'requests', true);
+ui_card_open(['title' => 'Pending Request Approvals', 'icon' => 'bi-file-earmark-text', 'flush' => true]);
+if (empty($pendingRequests)) {
+    echo '<div class="ui-card__pad">';
+    ui_empty('No pending request approvals.', 'bi-check2-circle');
+    echo '</div>';
+} else {
+    ui_table_toolbar('queue-requests-table', [
+        'columns'     => true,
+        'export'      => true,
+        'placeholder' => 'Search requests…',
+    ]);
+    ui_table_open('queue-requests-table', [
+        'paginate' => true,
+        'perPage'  => 15,
+        'label'    => 'Pending request approvals',
+    ]);
+    ?>
+    <thead>
+      <tr>
+        <th scope="col">Request #</th>
+        <th scope="col">Type</th>
+        <th scope="col">Branch</th>
+        <th scope="col">Requestor</th>
+        <th scope="col" class="ui-num">Amount</th>
+        <th scope="col">Awaiting</th>
+        <th scope="col">Status</th>
+        <th scope="col">Submitted</th>
+        <th scope="col">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($pendingRequests as $r): $canAct = ($r['required_role'] === $userRole); ?>
+      <tr<?= $canAct ? ' class="ui-row--flagged"' : '' ?>>
+        <th scope="row"><?= htmlspecialchars($r['request_number']) ?></th>
+        <td><?= ui_badge((string)$r['request_type'], 'neutral') ?></td>
+        <td><?= htmlspecialchars($r['branch_name'] ?? 'N/A') ?></td>
+        <td><?= htmlspecialchars($r['requestor_name'] ?? 'N/A') ?></td>
+        <td class="ui-num ui-num--strong"><?= htmlspecialchars($r['currency'] ?? 'JMD') ?> <?= number_format((float)$r['estimated_value'], 2) ?></td>
+        <td>
+          <div class="ui-badges">
+            <?= ui_badge((string)$r['required_role'], $canAct ? 'warning' : 'info') ?>
+            <?php if ($canAct): ?><?= ui_badge('You', 'success') ?><?php endif; ?>
+          </div>
+        </td>
+        <td><?= ui_status_badge($r['request_status']) ?></td>
+        <td class="ui-nowrap ui-muted-cell"><?= date('d M Y', strtotime((string)$r['created_at'])) ?></td>
+        <td>
+          <a class="ui-action ui-action--sm<?= $canAct ? ' ui-action--primary' : '' ?>" href="/procurement/view.php?id=<?= (int)$r['request_id'] ?>">
+            <i class="bi bi-eye" aria-hidden="true"></i><span><?= $canAct ? 'Review' : 'View' ?></span>
+          </a>
+        </td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+    <?php
+    ui_table_close('queue-requests-table');
+}
+ui_card_close();
+ui_tabpanel_close();
+
+ui_tabpanel_open('queue', 'workflow');
+ui_card_open(['title' => 'Workflow Actions Required', 'icon' => 'bi-arrow-repeat', 'flush' => true]);
+if (empty($workflowActions)) {
+    echo '<div class="ui-card__pad">';
+    ui_empty('No pending workflow actions.', 'bi-check2-circle');
+    echo '</div>';
+} else {
+    ui_table_toolbar('queue-workflow-table', [
+        'columns'     => true,
+        'export'      => true,
+        'placeholder' => 'Search workflow actions…',
+    ]);
+    ui_table_open('queue-workflow-table', [
+        'paginate' => true,
+        'perPage'  => 15,
+        'label'    => 'Workflow actions required',
+    ]);
+    ?>
+    <thead>
+      <tr>
+        <th scope="col">Request #</th>
+        <th scope="col">Type</th>
+        <th scope="col">Branch</th>
+        <th scope="col">Requestor</th>
+        <th scope="col" class="ui-num">Amount</th>
+        <th scope="col">Current Status</th>
+        <th scope="col">Date</th>
+        <th scope="col">Next Action</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($workflowActions as $w):
+        $st     = strtoupper((string)$w['request_status']);
+        $action = $statusActionMap[$st] ?? ['label' => $st, 'color' => '#999', 'icon' => 'bi-question-circle'];
+    ?>
+      <tr>
+        <th scope="row"><?= htmlspecialchars($w['request_number']) ?></th>
+        <td><?= ui_badge((string)$w['request_type'], 'neutral') ?></td>
+        <td><?= htmlspecialchars($w['branch_name'] ?? 'N/A') ?></td>
+        <td><?= htmlspecialchars($w['requestor_name'] ?? 'N/A') ?></td>
+        <td class="ui-num ui-num--strong"><?= htmlspecialchars($w['currency'] ?? 'JMD') ?> <?= number_format((float)$w['estimated_value'], 2) ?></td>
+        <td><?= ui_status_badge($st) ?></td>
+        <td class="ui-nowrap ui-muted-cell"><?= date('d M Y', strtotime((string)$w['created_at'])) ?></td>
+        <td>
+          <a class="ui-action ui-action--sm ui-action--primary ui-nowrap" href="/procurement/view.php?id=<?= (int)$w['request_id'] ?>">
+            <i class="bi <?= htmlspecialchars($action['icon']) ?>" aria-hidden="true"></i><span><?= htmlspecialchars($action['label']) ?></span>
+          </a>
+        </td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+    <?php
+    ui_table_close('queue-workflow-table');
+}
+ui_card_close();
+ui_tabpanel_close();
+?>
 </div>
-
-<!-- KPI Summary Cards -->
-<div class="row g-3 mb-4">
-    <div class="col-md-6 col-sm-6">
-        <div class="card border-0 shadow-sm h-100" style="border-left: 5px solid #667eea !important;">
-            <div class="card-body text-center py-3">
-                <small class="text-uppercase fw-bold d-block mb-1" style="letter-spacing:.05em; color:#667eea;">Requests</small>
-                <h2 class="mb-0 fw-bold"><?= $cntRequests ?></h2>
-                <small class="text-muted">awaiting approval</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6 col-sm-6">
-        <div class="card border-0 shadow-sm h-100" style="border-left: 5px solid #43e97b !important;">
-            <div class="card-body text-center py-3">
-                <small class="text-uppercase fw-bold d-block mb-1" style="letter-spacing:.05em; color:#43e97b;">Workflow Actions</small>
-                <h2 class="mb-0 fw-bold"><?= $cntWorkflow ?></h2>
-                <small class="text-muted">need attention</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════
-     PENDING REQUESTS
-═══════════════════════════════════════════════════════ -->
-<div class="card shadow-sm border-0 mb-4">
-    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>Pending Request Approvals</h5>
-        <span class="badge bg-light text-dark"><?= $cntRequests ?></span>
-    </div>
-    <div class="card-body p-0">
-        <?php if (empty($pendingRequests)): ?>
-            <div class="text-center py-4 text-muted"><i class="bi bi-check-circle fs-3"></i><p class="mt-2 mb-0">No pending request approvals</p></div>
-        <?php else: ?>
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th class="px-3">Request #</th>
-                        <th>Type</th>
-                        <th>Branch</th>
-                        <th>Requestor</th>
-                        <th class="text-end">Amount</th>
-                        <th>Awaiting</th>
-                        <th>Status</th>
-                        <th>Submitted</th>
-                        <th class="text-center">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($pendingRequests as $r): 
-                        $canAct = ($r['required_role'] === $userRole);
-                    ?>
-                    <tr class="<?= $canAct ? 'table-warning' : '' ?>">
-                        <td class="px-3 fw-bold"><?= htmlspecialchars($r['request_number']) ?></td>
-                        <td><span class="badge bg-secondary-subtle text-secondary"><?= $r['request_type'] ?></span></td>
-                        <td><?= htmlspecialchars($r['branch_name'] ?? 'N/A') ?></td>
-                        <td><?= htmlspecialchars($r['requestor_name'] ?? 'N/A') ?></td>
-                        <td class="text-end fw-semibold"><?= htmlspecialchars($r['currency'] ?? 'JMD') ?> <?= number_format($r['estimated_value'], 2) ?></td>
-                        <td>
-                            <span class="badge <?= $canAct ? 'bg-warning text-dark' : 'bg-info' ?>"><?= htmlspecialchars($r['required_role']) ?></span>
-                            <?php if ($canAct): ?><small class="d-block text-success fw-bold">&larr; You</small><?php endif; ?>
-                        </td>
-                        <td><span class="badge bg-primary-subtle text-primary"><?= str_replace('_', ' ', $r['request_status']) ?></span></td>
-                        <td><small class="text-muted"><?= date('d M Y', strtotime($r['created_at'])) ?></small></td>
-                        <td class="text-center">
-                            <a href="/procurement/view.php?id=<?= $r['request_id'] ?>" class="btn btn-sm <?= $canAct ? 'btn-primary' : 'btn-outline-primary' ?>">
-                                <i class="bi bi-eye me-1"></i><?= $canAct ? 'Review' : 'View' ?>
-                            </a>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php endif; ?>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════
-     WORKFLOW ACTIONS REQUIRED
-═══════════════════════════════════════════════════════ -->
-<div class="card shadow-sm border-0 mb-4">
-    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="bi bi-arrow-repeat me-2"></i>Workflow Actions Required</h5>
-        <span class="badge bg-light text-dark"><?= $cntWorkflow ?></span>
-    </div>
-    <div class="card-body p-0">
-        <?php if (empty($workflowActions)): ?>
-            <div class="text-center py-4 text-muted"><i class="bi bi-check-circle fs-3"></i><p class="mt-2 mb-0">No pending workflow actions</p></div>
-        <?php else: ?>
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th class="px-3">Request #</th>
-                        <th>Type</th>
-                        <th>Branch</th>
-                        <th>Requestor</th>
-                        <th class="text-end">Amount</th>
-                        <th>Current Status</th>
-                        <th>Next Action</th>
-                        <th>Date</th>
-                        <th class="text-center">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($workflowActions as $w):
-                        $st = strtoupper($w['request_status']);
-                        $action = $statusActionMap[$st] ?? ['label' => $st, 'color' => '#999', 'icon' => 'bi-question-circle'];
-                    ?>
-                    <tr>
-                        <td class="px-3 fw-bold"><?= htmlspecialchars($w['request_number']) ?></td>
-                        <td><span class="badge bg-secondary-subtle text-secondary"><?= $w['request_type'] ?></span></td>
-                        <td><?= htmlspecialchars($w['branch_name'] ?? 'N/A') ?></td>
-                        <td><?= htmlspecialchars($w['requestor_name'] ?? 'N/A') ?></td>
-                        <td class="text-end fw-semibold"><?= htmlspecialchars($w['currency'] ?? 'JMD') ?> <?= number_format($w['estimated_value'], 2) ?></td>
-                        <td><span class="badge" style="background-color: <?= $action['color'] ?>; color: white;"><?= str_replace('_', ' ', $st) ?></span></td>
-                        <td>
-                            <span style="font-size: 0.85rem; font-weight: 600; color: <?= $action['color'] ?>;">
-                                <i class="bi <?= $action['icon'] ?> me-1"></i><?= $action['label'] ?>
-                            </span>
-                        </td>
-                        <td><small class="text-muted"><?= date('d M Y', strtotime($w['created_at'])) ?></small></td>
-                        <td class="text-center">
-                            <a href="/procurement/view.php?id=<?= $w['request_id'] ?>" class="btn btn-sm btn-primary">
-                                <i class="bi <?= $action['icon'] ?> me-1"></i>Take Action
-                            </a>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php endif; ?>
-    </div>
-</div>
-
-</div>
-
 <?php require_once $_SERVER['DOCUMENT_ROOT'].'/includes/footer.php'; ?>

@@ -86,6 +86,98 @@
     });
 
     persist();
+    initFilter(sidebar, groups, persist);
+  }
+
+  /**
+   * Progressive-enhancement quick filter: typing narrows the sidebar to the
+   * matching links and auto-opens the groups that still have visible items.
+   */
+  function initFilter(sidebar, groups, persist) {
+    var wrap = sidebar.querySelector('[data-sidebar-filter]');
+    if (!wrap) return;
+    var input = wrap.querySelector('.sidebar-filter__input');
+    var status = wrap.querySelector('.sidebar-filter__status');
+    if (!input) return;
+
+    wrap.hidden = false;
+
+    var preFilterState = null;
+
+    /* Links that live outside any collapsible group (e.g. Dashboard). */
+    var looseLinks = Array.prototype.slice
+      .call(sidebar.querySelectorAll('.sidebar-link'))
+      .filter(function (link) { return !link.closest('.sidebar-group-items'); });
+
+    function restore() {
+      sidebar.querySelectorAll('.is-filtered-out').forEach(function (el) {
+        el.classList.remove('is-filtered-out');
+      });
+      if (preFilterState) {
+        groups.forEach(function (group) {
+          setGroupState(group.toggle, group.panel, preFilterState.indexOf(group.id) !== -1);
+        });
+      }
+      preFilterState = null;
+      if (status) status.textContent = '';
+    }
+
+    function apply(term) {
+      if (preFilterState === null) {
+        preFilterState = groups
+          .filter(function (g) { return g.panel.classList.contains('is-open'); })
+          .map(function (g) { return g.id; });
+      }
+
+      var matches = 0;
+      groups.forEach(function (group) {
+        var visible = 0;
+        group.panel.querySelectorAll('.sidebar-link').forEach(function (link) {
+          var hit = link.textContent.toLowerCase().indexOf(term) !== -1;
+          link.classList.toggle('is-filtered-out', !hit);
+          var item = link.closest('.nav-item');
+          if (item && item !== group.toggle.closest('.nav-item')) {
+            item.classList.toggle('is-filtered-out', !hit);
+          }
+          if (hit) visible++;
+        });
+        matches += visible;
+        var host = group.toggle.closest('.nav-item');
+        if (host) host.classList.toggle('is-filtered-out', visible === 0);
+        setGroupState(group.toggle, group.panel, visible > 0);
+      });
+
+      looseLinks.forEach(function (link) {
+        var hit = link.textContent.toLowerCase().indexOf(term) !== -1;
+        link.classList.toggle('is-filtered-out', !hit);
+        var item = link.closest('.nav-item');
+        if (item) item.classList.toggle('is-filtered-out', !hit);
+        if (hit) matches++;
+      });
+
+      if (status) {
+        status.textContent = matches
+          ? matches + ' link' + (matches === 1 ? '' : 's') + ' match'
+          : 'No matching links';
+      }
+    }
+
+    input.addEventListener('input', function () {
+      var term = input.value.trim().toLowerCase();
+      if (!term) {
+        restore();
+        persist();
+        return;
+      }
+      apply(term);
+    });
+
+    input.addEventListener('keydown', function (event) {
+      if (event.key !== 'Escape') return;
+      input.value = '';
+      restore();
+      persist();
+    });
   }
 
   if (document.readyState === 'loading') {
