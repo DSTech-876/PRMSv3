@@ -76,6 +76,27 @@ final class NumberSequenceHelperTest extends PHPUnit\Framework\TestCase
         $this->assertSame('PR009', generateRequestNumber($this->pdo));
     }
 
+    public function testCommitmentNumberSkipsPastExistingCommitmentsWhenSequenceRowIsMissing(): void
+    {
+        $this->pdo->exec("CREATE TABLE commitments (commitment_id INTEGER PRIMARY KEY AUTOINCREMENT, commitment_number TEXT UNIQUE)");
+        $this->pdo->exec("INSERT INTO commitments (commitment_number) VALUES ('CM001'), ('CM004')");
+
+        $this->assertSame('CM005', generateCommitmentNumber($this->pdo));
+        $this->assertSame('CM006', generateCommitmentNumber($this->pdo));
+    }
+
+    public function testPurchaseOrderNumberSkipsPastExistingPosAndIgnoresYearlyFormat(): void
+    {
+        $this->pdo->exec("CREATE TABLE purchase_orders (po_id INTEGER PRIMARY KEY AUTOINCREMENT, po_number TEXT UNIQUE)");
+        $this->pdo->exec("INSERT INTO purchase_orders (po_number) VALUES ('PO002'), ('PO-2026-0009')");
+        $this->pdo->exec("
+            INSERT INTO number_sequences (sequence_key, next_value, created_at, updated_at)
+            VALUES ('purchase_order_number', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ");
+
+        $this->assertSame('PO003', generatePONumber($this->pdo));
+    }
+
     public function testPrefixedSequenceFloorUsesMySqlCompatibleSignedCast(): void
     {
         $pdo = new class('sqlite::memory:') extends PDO {
