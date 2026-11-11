@@ -33,6 +33,7 @@
   function setGroupState(toggle, panel, open) {
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     panel.classList.toggle('is-open', open);
+    panel.toggleAttribute('inert', !open);
   }
 
   function init() {
