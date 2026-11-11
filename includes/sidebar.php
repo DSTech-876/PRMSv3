@@ -197,6 +197,12 @@ function isCollapsibleActive($urls, $currentPage) {
                 <i class="bi bi-house me-2"></i>Dashboard
             </a>
         </li>
+        <li class="nav-item mt-2">
+            <a class="nav-link text-white sidebar-link <?= active('/notifications', $currentPage) ?>"
+               href="/notifications/index.php">
+                <i class="bi bi-bell me-2"></i>Notifications
+            </a>
+        </li>
 
         <!-- ===== PROCUREMENT WORKFLOW ===== -->
         <?php if (has_permission('view_requests')): ?>
@@ -645,7 +651,7 @@ function isCollapsibleActive($urls, $currentPage) {
         <?php endif; ?>
 
         <!-- ===== ADMINISTRATION SECTION ===== -->
-        <?php if (has_permission('manage_users') || has_permission('manage_roles') || has_permission('view_audit_logs') || has_permission('manage_email_notifications')): ?>
+        <?php if (has_permission('manage_users') || has_permission('manage_roles') || has_permission('view_audit_logs') || has_permission('manage_email_notifications') || has_permission('manage_reminder_settings')): ?>
         <li class="nav-item mt-2">
             <button class="sidebar-group-toggle" type="button" data-sidebar-group="sidebar-group-admin" aria-expanded="false" aria-controls="sidebar-group-admin">
                 <i class="bi bi-gear sidebar-group-icon" aria-hidden="true"></i>
@@ -698,6 +704,17 @@ function isCollapsibleActive($urls, $currentPage) {
             <a class="nav-link text-white sidebar-link <?= active('/admin/email_notifications', $currentPage) ?>"
                href="/admin/email_notifications.php">
                 <i class="bi bi-envelope-gear me-2"></i>Email Notifications
+            </a>
+            <a class="nav-link text-white sidebar-link <?= active('/tools/email_diagnostic', $currentPage) ?>"
+               href="/tools/email_diagnostic.php">
+                <i class="bi bi-envelope-check me-2"></i>Email Diagnostics
+            </a>
+            <?php endif; ?>
+
+            <?php if (has_permission('manage_reminder_settings')): ?>
+            <a class="nav-link text-white sidebar-link <?= active('/admin/reminder_settings', $currentPage) ?>"
+               href="/admin/reminder_settings.php">
+                <i class="bi bi-alarm me-2"></i>Reminder Settings
             </a>
             <?php endif; ?>
 

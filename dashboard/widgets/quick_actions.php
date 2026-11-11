@@ -42,8 +42,17 @@ $quickActionGroups = [
         ['label' => 'Email Diagnostics', 'href' => '/tools/email_diagnostic.php', 'icon' => 'bi-envelope-check'],
         ['label' => 'Monthly Report', 'href' => '/dashboard/monthly.php',     'icon' => 'bi-bar-chart-line'],
         ['label' => 'Management View','href' => '/dashboard/management.php',  'icon' => 'bi-person-badge'],
+        ['label' => 'Notifications',  'href' => '/notifications/index.php',   'icon' => 'bi-bell'],
     ],
 ];
+
+/* Reminder Settings is gated separately since it has its own dedicated
+   permission rather than belonging to the always-shown Administration set. */
+if (function_exists('has_permission') && has_permission('manage_reminder_settings')) {
+    $quickActionGroups['Administration'][] = [
+        'label' => 'Reminder Settings', 'href' => '/admin/reminder_settings.php', 'icon' => 'bi-alarm',
+    ];
+}
 
 /* Permission-gated extras keep the panel honest about what the user can open. */
 if (function_exists('has_permission') && has_permission('access_test_suite')) {
