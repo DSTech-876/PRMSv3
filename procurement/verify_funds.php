@@ -54,7 +54,7 @@ $currentStatus = strtoupper((string)$request['status']);
 
 /* Fund verification happens after branch approval, or after the quote is approved
    on the RFQ path. */
-$allowedStatuses = ['HOD_APPROVED', 'SUBMITTED', 'DIRECTOR_APPROVED', 'GC_APPROVED', 'QUOTE_APPROVED'];
+$allowedStatuses = ['HOD_APPROVED', 'DIRECTOR_APPROVED', 'GC_APPROVED', 'QUOTE_APPROVED'];
 if (!in_array($currentStatus, $allowedStatuses, true)) {
     modalPop('Cannot Verify', 'This request is not at a stage where funds can be verified. Current status: ' . $request['status'], '/procurement/view.php?id=' . $request_id, 'error');
     exit;
@@ -111,7 +111,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nextStatus = $pendingFinanceApprovalId
             ? getNextStatusAfterApproval($pdo, $request_id, 'Finance Officer')
             : 'FUNDS_VERIFIED';
-        enforceTransition($request, $nextStatus);
+         
+        // When Finance Officer is the last approval, only validate the transition itself
+        // without requiring authorization for the target stage (which excludes Finance Officer).
+        // Otherwise, enforce full authorization for the target stage.
+        if ($pendingFinanceApprovalId) {
+            if (!canTransition($request['status'], $nextStatus)) {
+                pop(
+                    "Invalid workflow transition from {$request['status']} to {$nextStatus}",
+                    '/procurement/list.php',
+                    POP_DEFAULT_DELAY_MS,
+                    'error'
+                );
+                exit;
+            }
+        } else {
+            enforceTransition($request, $nextStatus);
+        }
     }
 
     try {
