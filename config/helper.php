@@ -315,6 +315,28 @@ function prefixedSequenceFloor(PDO $pdo, string $tableName, string $columnName, 
     return max($seed, ((int) $maxValue) + 1);
 }
 
+/**
+ * Next sequence value, never lower than the highest number already stored in
+ * $tableName.$columnName. Protects against a missing or stale sequence row
+ * re-issuing a number that already exists (e.g. CM001 after legacy data).
+ */
+function nextFlooredSequenceValue(PDO $pdo, string $sequenceKey, string $tableName, string $columnName, string $prefix): int
+{
+    $nextValue = nextSequenceValue($pdo, $sequenceKey, 1);
+    $floorValue = prefixedSequenceFloor($pdo, $tableName, $columnName, $prefix);
+
+    if ($nextValue < $floorValue) {
+        $nextValue = $floorValue;
+        $pdo->prepare("
+            UPDATE number_sequences
+            SET next_value = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE sequence_key = ?
+        ")->execute([$nextValue + 1, $sequenceKey]);
+    }
+
+    return $nextValue;
+}
+
 function previewRequestNumber(PDO $pdo): string
 {
     if (numberSequencesTableExists($pdo)) {
@@ -341,17 +363,7 @@ function previewRequestNumber(PDO $pdo): string
 function generateRequestNumber(PDO $pdo): string
 {
     if (numberSequencesTableExists($pdo)) {
-        $nextValue = nextSequenceValue($pdo, 'procurement_request_number', 1);
-        $floorValue = prefixedSequenceFloor($pdo, 'procurement_requests', 'request_number', 'PR');
-
-        if ($nextValue < $floorValue) {
-            $nextValue = $floorValue;
-            $pdo->prepare("
-                UPDATE number_sequences
-                SET next_value = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE sequence_key = ?
-            ")->execute([$nextValue + 1, 'procurement_request_number']);
-        }
+        $nextValue = nextFlooredSequenceValue($pdo, 'procurement_request_number', 'procurement_requests', 'request_number', 'PR');
 
         return 'PR' . str_pad((string) $nextValue, 3, '0', STR_PAD_LEFT);
     }
@@ -377,7 +389,8 @@ function generateRequestNumber(PDO $pdo): string
 function generateCommitmentNumber(PDO $pdo): string
 {
     if (numberSequencesTableExists($pdo)) {
-        return 'CM' . str_pad((string) nextSequenceValue($pdo, 'commitment_number', 1), 3, '0', STR_PAD_LEFT);
+        $nextValue = nextFlooredSequenceValue($pdo, 'commitment_number', 'commitments', 'commitment_number', 'CM');
+        return 'CM' . str_pad((string) $nextValue, 3, '0', STR_PAD_LEFT);
     }
 
     $query = "
@@ -401,7 +414,8 @@ function generateCommitmentNumber(PDO $pdo): string
 function generatePONumber(PDO $pdo): string
 {
     if (numberSequencesTableExists($pdo)) {
-        return 'PO' . str_pad((string) nextSequenceValue($pdo, 'purchase_order_number', 1), 3, '0', STR_PAD_LEFT);
+        $nextValue = nextFlooredSequenceValue($pdo, 'purchase_order_number', 'purchase_orders', 'po_number', 'PO');
+        return 'PO' . str_pad((string) $nextValue, 3, '0', STR_PAD_LEFT);
     }
 
     $query = "
