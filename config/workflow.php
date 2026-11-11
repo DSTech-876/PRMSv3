@@ -212,7 +212,7 @@ function workflowStatusGateAllows(array $request, array $allowedStatuses, string
         // verify that the request has cleared the approval chain.
         $pdo = workflowPdo($pdo);
         if ($pdo && WorkflowModeService::resolveRequestMode($pdo, $request) === WorkflowModeService::MODE_PARALLEL) {
-            return WorkflowModeService::isApprovedForProcurement($pdo, (int)($request['request_id'] ?? 0));
+            return WorkflowModeService::isApprovedForProcurement($pdo, $request);
         }
         return true;
     }
