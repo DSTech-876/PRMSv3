@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $amount = $_POST['quote_amount'] ?? 0;
     $gct    = $_POST['gct_amount'] ?? 0;
-    $quoteCurrency = in_array(($_POST['quote_currency'] ?? ''), ['JMD', 'USD']) ? $_POST['quote_currency'] : 'JMD';
+    $quoteCurrency = CurrencyService::normalize($_POST['quote_currency'] ?? null, $pdo);
     $quoteUsdRate = null;
     if ($quoteCurrency === 'USD') {
         $rateStmt = $pdo->prepare("SELECT config_value FROM system_config WHERE config_key = 'usd_to_jmd_rate'");
@@ -189,8 +189,12 @@ $vendorName = htmlspecialchars($vendor['vendor_name'] ?? '');
                                 <i class="bi bi-currency-exchange me-1 text-primary"></i>Currency
                             </label>
                             <select name="quote_currency" class="form-select" id="quote_currency" onchange="updateQuoteCurrencyLabel()">
-                                <option value="JMD" selected>JMD</option>
-                                <option value="USD">USD</option>
+                                <?php foreach (CurrencyService::selectOptions($pdo) as $__opt): ?>
+                                    <option value="<?= htmlspecialchars($__opt['code']) ?>"
+                                      <?= $__opt['code'] === CurrencyService::defaultCurrency($pdo) ? 'selected' : '' ?>>
+                                      <?= htmlspecialchars($__opt['code']) ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="col-sm-4">
@@ -198,7 +202,7 @@ $vendorName = htmlspecialchars($vendor['vendor_name'] ?? '');
                                 <i class="bi bi-cash-stack me-1 text-success"></i>Quote Amount
                             </label>
                             <div class="input-group">
-                                <span class="input-group-text bg-light border-end-0" id="quoteCurrLabel">$</span>
+                                <span class="input-group-text bg-light border-end-0" id="quoteCurrLabel"><?= htmlspecialchars(CurrencyService::symbol(CurrencyService::defaultCurrency($pdo))) ?></span>
                                 <input type="number" step="0.01" min="0" name="quote_amount"
                                        class="form-control border-start-0" placeholder="0.00" required>
                             </div>
@@ -208,7 +212,7 @@ $vendorName = htmlspecialchars($vendor['vendor_name'] ?? '');
                                 <i class="bi bi-percent me-1 text-warning"></i>GCT Amount
                             </label>
                             <div class="input-group">
-                                <span class="input-group-text bg-light border-end-0" id="gctCurrLabel">$</span>
+                                <span class="input-group-text bg-light border-end-0" id="gctCurrLabel"><?= htmlspecialchars(CurrencyService::symbol(CurrencyService::defaultCurrency($pdo))) ?></span>
                                 <input type="number" step="0.01" min="0" name="gct_amount"
                                        class="form-control border-start-0" placeholder="0.00" required>
                             </div>
@@ -255,6 +259,7 @@ $vendorName = htmlspecialchars($vendor['vendor_name'] ?? '');
 </div>
 
 <script>
+const CURRENCY_SYMBOLS = <?= json_encode(CurrencyService::symbolMap($pdo), JSON_UNESCAPED_UNICODE) ?>;
 // Drag-and-drop & click-to-browse for the file input
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('quoteFile');
@@ -292,7 +297,7 @@ function showFile(file) {
 
 function updateQuoteCurrencyLabel() {
     const c = document.getElementById('quote_currency').value;
-    const symbol = c === 'USD' ? 'US$' : '$';
+    const symbol = CURRENCY_SYMBOLS[c] || c;
     document.getElementById('quoteCurrLabel').textContent = symbol;
     document.getElementById('gctCurrLabel').textContent = symbol;
 }

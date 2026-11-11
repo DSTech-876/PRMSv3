@@ -14,21 +14,35 @@ $visibilityWhere = (function_exists('isProcurementVisibilityRestrictedRole')
 $query = "
     SELECT 
         status,
+        currency,
         COUNT(*) as count,
         SUM(estimated_value) as total_value
     FROM procurement_requests
     {$visibilityWhere}
-    GROUP BY status
-    ORDER BY count DESC
+    GROUP BY status, currency
+    ORDER BY status
 ";
-$data = $pdo->query($query)->fetchAll();
+$rows = $pdo->query($query)->fetchAll();
+
+// Aggregate per status (count across currencies) while keeping per-currency totals,
+// since mixed-currency amounts must never be summed into a single figure.
+$data = [];
+foreach ($rows as $r) {
+    $status = $r['status'];
+    if (!isset($data[$status])) {
+        $data[$status] = ['status' => $status, 'count' => 0, 'currency_rows' => []];
+    }
+    $data[$status]['count'] += (int)$r['count'];
+    $data[$status]['currency_rows'][] = $r;
+}
+usort($data, fn($a, $b) => $b['count'] <=> $a['count']);
 
 $totalCount = 0;
-$totalValue = 0;
 foreach ($data as $r) {
     $totalCount += $r['count'];
-    $totalValue += $r['total_value'];
 }
+$totalByCurrency = CurrencyService::groupTotals($rows, 'total_value', 'currency', $pdo);
+$totalValueDisplay = CurrencyService::formatGroupedTotals($totalByCurrency, ' • ', $pdo);
 
 // Define status colors
 $statusColors = [
@@ -84,7 +98,7 @@ $statusColors = [
           </div>
           <div>
             <small class="text-muted text-uppercase fw-semibold" style="font-size:.75rem;">Total Value</small>
-            <h4 class="fw-bold mb-0 text-dark"><?= money($totalValue) ?></h4>
+            <h4 class="fw-bold mb-0 text-dark"><?= $totalValueDisplay ?></h4>
           </div>
         </div>
       </div>
@@ -130,7 +144,7 @@ $statusColors = [
                 </span>
               </td>
               <td class="text-end fw-semibold"><?= $row['count'] ?></td>
-              <td class="text-end"><?= money($row['total_value']) ?></td>
+              <td class="text-end"><?= CurrencyService::formatGroupedTotals(CurrencyService::groupTotals($row['currency_rows'], 'total_value', 'currency', $pdo), ' • ', $pdo) ?></td>
               <td class="text-end"><?= number_format(($row['count'] / $totalCount) * 100, 2) ?>%</td>
             </tr>
             <?php endforeach; ?>

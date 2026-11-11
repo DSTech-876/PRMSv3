@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $description = trim($_POST['description'] ?? '');
         $request_type = 'REGULAR'; // This form is for regular procurement only
         $estimated_value = (float)($_POST['estimated_value'] ?? 0);
-        $currency = in_array(($_POST['currency'] ?? ''), ['JMD', 'USD']) ? $_POST['currency'] : 'JMD';
+        $currency = CurrencyService::normalize($_POST['currency'] ?? null, $pdo);
         $usd_rate = null;
         
         // NEW: Capture work_performed and goods_delivered flags
@@ -265,14 +265,18 @@ $jsUsdRate = (float)($sysRateStmt->fetchColumn() ?: 155.00);
           <div class="col-md-4">
             <label class="form-label fw-bold">Currency <span class="text-danger">*</span></label>
             <select name="currency" id="currency_select" class="form-select" required onchange="updateCurrencyLabel()">
-              <option value="JMD" selected>JMD - Jamaican Dollar</option>
-              <option value="USD">USD - US Dollar</option>
+              <?php foreach (CurrencyService::selectOptions($pdo) as $__opt): ?>
+                <option value="<?= htmlspecialchars($__opt['code']) ?>"
+                  <?= $__opt['code'] === CurrencyService::defaultCurrency($pdo) ? 'selected' : '' ?>>
+                  <?= htmlspecialchars($__opt['label']) ?>
+                </option>
+              <?php endforeach; ?>
             </select>
           </div>
           <div class="col-md-4">
             <label class="form-label fw-bold">Estimated Value <span class="text-danger">*</span></label>
             <div class="input-group">
-              <span class="input-group-text" id="currency_label">JMD</span>
+              <span class="input-group-text" id="currency_label"><?= htmlspecialchars(CurrencyService::defaultCurrency($pdo)) ?></span>
               <input type="number" name="estimated_value" id="estimated_value"
                      class="form-control" step="0.01" min="0" required
                      onchange="updateThresholdHint()" onkeyup="updateThresholdHint()">

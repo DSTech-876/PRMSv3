@@ -151,6 +151,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             notifyProcurementRFQReady($id);
         }
 
+        /* Final approval granted: broadcast to every user involved in the
+           procurement lifecycle so document preparation can begin. */
+        require_once $_SERVER['DOCUMENT_ROOT'] . '/services/ProcurementApprovalNotificationService.php';
+        if (ProcurementApprovalNotificationService::isFinalApproval($pdo, $id)) {
+            ProcurementApprovalNotificationService::notifyApprovalGranted($id, $nextStatus, $pdo);
+        }
+
         pop(
             "Request approved successfully.",
             "/dashboard/index.php",

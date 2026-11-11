@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $contract_type   = $_POST['contract_type'] ?? 'FIXED_PRICE';
     $description     = trim($_POST['description'] ?? '');
     $total_value     = (float)($_POST['total_value'] ?? 0);
-    $currency        = in_array(($_POST['currency'] ?? ''), ['JMD', 'USD']) ? $_POST['currency'] : 'JMD';
+    $currency        = CurrencyService::normalize($_POST['currency'] ?? null, $pdo);
     $start_date      = trim($_POST['start_date'] ?? '');
     $end_date        = trim($_POST['end_date'] ?? '');
     $payment_terms   = (int)($_POST['payment_terms'] ?? 30);
@@ -201,8 +201,13 @@ require_once $_SERVER['DOCUMENT_ROOT'].'/includes/header.php';
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Currency</label>
                             <select name="currency" class="form-select">
-                                <option value="JMD" <?= ($_POST['currency'] ?? 'JMD') === 'JMD' ? 'selected' : '' ?>>JMD</option>
-                                <option value="USD" <?= ($_POST['currency'] ?? '') === 'USD' ? 'selected' : '' ?>>USD</option>
+                                <?php $__cur = $_POST['currency'] ?? CurrencyService::defaultCurrency($pdo); ?>
+                                <?php foreach (CurrencyService::selectOptions($pdo) as $__opt): ?>
+                                    <option value="<?= htmlspecialchars($__opt['code']) ?>"
+                                      <?= $__cur === $__opt['code'] ? 'selected' : '' ?>>
+                                      <?= htmlspecialchars($__opt['label']) ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="col-md-4">

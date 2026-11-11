@@ -168,7 +168,10 @@ if ($__prmsExportEnabled && empty($_SESSION['piams_export_csrf_token'])) {
         </div>
         <div id="prms-notif-list" style="max-height:380px; overflow-y:auto;"></div>
         <div style="padding:0.6rem 1rem; border-top:1px solid #eee; text-align:center;">
-          <small style="color:#999; font-size:0.75rem;">Showing latest 20 notifications</small>
+          <a href="/notifications/index.php" style="font-size:0.8rem; color:#667eea; font-weight:600; text-decoration:none;">
+            View all notifications
+          </a>
+          <div><small style="color:#999; font-size:0.72rem;">Showing latest 20 notifications</small></div>
         </div>
       </div>
     </div>

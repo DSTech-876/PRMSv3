@@ -15,14 +15,36 @@ $query = "
     SELECT 
         b.branch_id,
         b.branch_name,
+        pr.currency,
         COUNT(pr.request_id) as count,
         SUM(pr.estimated_value) as total_value
     FROM branches b
     LEFT JOIN procurement_requests pr ON b.branch_id = pr.branch_id{$branchVisibilityFilter}
-    GROUP BY b.branch_id, b.branch_name
-    ORDER BY total_value DESC
+    GROUP BY b.branch_id, b.branch_name, pr.currency
 ";
-$data = $pdo->query($query)->fetchAll();
+$rows = $pdo->query($query)->fetchAll();
+
+// Group per branch while keeping per-currency totals; mixed-currency amounts
+// must never be summed into a single figure.
+$data = [];
+foreach ($rows as $r) {
+    $branchId = $r['branch_id'];
+    if (!isset($data[$branchId])) {
+        $data[$branchId] = [
+            'branch_id'   => $branchId,
+            'branch_name' => $r['branch_name'],
+            'count'       => 0,
+            'total_value' => 0.0,
+            'currency_rows' => [],
+        ];
+    }
+    $data[$branchId]['count'] += (int)$r['count'];
+    $data[$branchId]['total_value'] += (float)$r['total_value'];
+    if ($r['currency'] !== null) {
+        $data[$branchId]['currency_rows'][] = $r;
+    }
+}
+usort($data, fn($a, $b) => $b['total_value'] <=> $a['total_value']);
 
 $totalCount = 0;
 $totalValue = 0;
@@ -30,7 +52,9 @@ foreach ($data as $r) {
     $totalCount += $r['count'];
     $totalValue += $r['total_value'];
 }
-$maxValue = max(array_column($data, 'total_value') ?: [1]);
+$totalByCurrency = CurrencyService::groupTotals($rows, 'total_value', 'currency', $pdo);
+$totalValueDisplay = CurrencyService::formatGroupedTotals($totalByCurrency, ' • ', $pdo);
+$maxValue = max(array_column($data, 'total_value') ?: [1]) ?: 1;
 ?>
 
 <div class="container-fluid mt-2">
@@ -74,7 +98,7 @@ $maxValue = max(array_column($data, 'total_value') ?: [1]);
           </div>
           <div>
             <small class="text-muted text-uppercase fw-semibold" style="font-size:.75rem;">Total Value</small>
-            <h4 class="fw-bold mb-0 text-dark"><?= money($totalValue) ?></h4>
+            <h4 class="fw-bold mb-0 text-dark"><?= $totalValueDisplay ?></h4>
           </div>
         </div>
       </div>
@@ -108,11 +132,11 @@ $maxValue = max(array_column($data, 'total_value') ?: [1]);
               <td class="ps-3 fw-bold text-muted" style="font-size:.85rem;"><?= $idx + 1 ?></td>
               <td class="fw-semibold"><?= htmlspecialchars($row['branch_name']) ?></td>
               <td class="text-end"><?= $row['count'] ?></td>
-              <td class="text-end fw-semibold"><?= money($row['total_value']) ?></td>
+              <td class="text-end fw-semibold"><?= CurrencyService::formatGroupedTotals(CurrencyService::groupTotals($row['currency_rows'], 'total_value', 'currency', $pdo), ' • ', $pdo) ?></td>
               <td>
                 <div style="width: 100%; background: #f0f0f0; border-radius: 4px; overflow: hidden; height: 24px;">
                   <div style="width: <?= ($row['total_value'] / $maxValue) * 100 ?>%; background: linear-gradient(90deg, #007bff, #0dcaf0); height: 100%; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; color: white; font-size: 11px; font-weight: bold;">
-                    <?= number_format(($row['total_value'] / $totalValue) * 100, 1) ?>%
+                    <?= $totalValue > 0 ? number_format(($row['total_value'] / $totalValue) * 100, 1) : '0.0' ?>%
                   </div>
                 </div>
               </td>

@@ -224,6 +224,14 @@ class RFQQuoteApprovalService
                 require_once $_SERVER['DOCUMENT_ROOT'] . '/config/notifications.php';
                 if ($decision === 'APPROVE') {
                     sendVendorAwardNotification($rfqId);
+                    /* Final Branch Head approval granted: inform every user in
+                       the procurement lifecycle that documents may be prepared. */
+                    require_once $_SERVER['DOCUMENT_ROOT'] . '/services/ProcurementApprovalNotificationService.php';
+                    ProcurementApprovalNotificationService::notifyApprovalGranted(
+                        (int) $context['request_id'],
+                        $requestStatus,
+                        $this->pdo
+                    );
                 } elseif ($decision === 'RETURN_FOR_CLARIFICATION') {
                     sendReturnForClarificationNotification($rfqId, 'BRANCH_HEAD_APPROVAL', $comments);
                 } else {
