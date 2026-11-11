@@ -45,7 +45,8 @@ if (!function_exists('extractDbMessage')) {
     function extractDbMessage(\Throwable $e): string { return $e->getMessage(); }
 }
 if (!function_exists('normalizeCurrency')) {
-    function normalizeCurrency(string $code): string { return $code; }
+    require_once dirname(__DIR__) . '/services/CurrencyService.php';
+    function normalizeCurrency(?string $code = null): string { return CurrencyService::normalize($code); }
 }
 if (!function_exists('has_permission')) {
     /**

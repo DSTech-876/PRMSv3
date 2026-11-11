@@ -27,6 +27,9 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+/* Multi-currency catalogue — available to every page that loads the helpers. */
+require_once __DIR__ . '/../services/CurrencyService.php';
+
 /* ================================
    Constants
 ================================ */
@@ -779,24 +782,28 @@ HTML;
    Dashboard Helpers
 ================================ */
 
-function money($amount, string $currency = 'JMD'): string
+function money($amount, ?string $currency = null): string
 {
-    $symbol = $currency === 'USD' ? 'US$' : '$';
-    return $symbol . number_format((float)$amount, 2);
+    require_once __DIR__ . '/../services/CurrencyService.php';
+    return CurrencyService::formatSymbol($amount, $currency);
 }
 
 /**
  * Format a monetary amount with the currency code prefix.
  * Used across views, dashboards, and approval pages for consistent display.
  *
- * @param float|string $amount  The numeric amount
- * @param string       $currency Currency code from the request ('JMD', 'USD')
- * @param int          $decimals Number of decimal places (default 2)
- * @return string  e.g. "JMD 1,234.56" or "USD 500.00"
+ * @param float|string $amount   The numeric amount
+ * @param string|null  $currency Currency code (JMD, USD, GBP, EUR, CAD)
+ * @param int|null     $decimals Decimal places; null uses the currency default
+ * @return string  e.g. "GBP 1,234.56" or "USD 500.00"
  */
-function fmtCurrency($amount, string $currency = 'JMD', int $decimals = 2): string
+function fmtCurrency($amount, ?string $currency = null, ?int $decimals = null): string
 {
-    $code = in_array($currency, ['JMD', 'USD']) ? $currency : 'JMD';
+    require_once __DIR__ . '/../services/CurrencyService.php';
+    $code = CurrencyService::normalize($currency);
+    if ($decimals === null) {
+        return CurrencyService::formatCode($amount, $code);
+    }
     return $code . ' ' . number_format((float)$amount, $decimals);
 }
 
@@ -985,31 +992,41 @@ function statusBadge(string $status): string {
 
 
 /**
- * Common typos fixed:
- * - USB → USD
- * - Defaults to JMD if invalid
- * 
- * @param string $currency Currency code from database
- * @return string Normalized currency code (JMD or USD)
+ * Normalize a currency code to a supported ISO-4217 code.
+ *
+ * Supported: JMD, USD, GBP, EUR, CAD.
+ * Common typos (e.g. USB → USD) are corrected; unknown or blank values fall
+ * back to the system default currency so legacy records keep rendering.
+ *
+ * @param string|null $currency Currency code from database
+ * @return string Normalized currency code
  */
 if (!function_exists('normalizeCurrency')) {
-    function normalizeCurrency(?string $currency = 'JMD'): string {
-        $currency = strtoupper(trim($currency ?? 'JMD'));
-        
-        // Fix common typo: USB → USD
-        if ($currency === 'USB') {
-            $currency = 'USD';
-        }
-        
-        // Validate and return - default to JMD if invalid
-        return in_array($currency, ['JMD', 'USD'], true) ? $currency : 'JMD';
+    function normalizeCurrency(?string $currency = null): string {
+        require_once __DIR__ . '/../services/CurrencyService.php';
+        return CurrencyService::normalize($currency);
+    }
+}
+
+if (!function_exists('currencySymbol')) {
+    /**
+     * Display symbol for a currency code, e.g. "£", "€", "US$".
+     */
+    function currencySymbol(?string $currency = null): string
+    {
+        require_once __DIR__ . '/../services/CurrencyService.php';
+        return CurrencyService::symbol($currency);
     }
 }
 
 if (!function_exists('formatCurrency')) {
-    function formatCurrency(float $amount, string $currency = 'JMD'): string
+    /**
+     * Code-prefixed amount, e.g. "GBP 1,234.56".
+     */
+    function formatCurrency(float $amount, ?string $currency = null): string
     {
-        return normalizeCurrency($currency) . ' ' . number_format($amount, 2);
+        require_once __DIR__ . '/../services/CurrencyService.php';
+        return CurrencyService::formatCode($amount, $currency);
     }
 }
 

@@ -14,14 +14,28 @@ $visibilityWhere = (function_exists('isProcurementVisibilityRestrictedRole')
 $query = "
     SELECT 
         COALESCE(procurement_method, 'UNSPECIFIED') as type,
+        currency,
         COUNT(*) as count,
         SUM(estimated_value) as total_value
     FROM procurement_requests
     {$visibilityWhere}
-    GROUP BY procurement_method
-    ORDER BY total_value DESC
+    GROUP BY procurement_method, currency
 ";
-$data = $pdo->query($query)->fetchAll();
+$rows = $pdo->query($query)->fetchAll();
+
+// Group per type while keeping per-currency totals; mixed-currency amounts
+// must never be summed into a single figure.
+$data = [];
+foreach ($rows as $r) {
+    $type = $r['type'];
+    if (!isset($data[$type])) {
+        $data[$type] = ['type' => $type, 'count' => 0, 'total_value' => 0.0, 'currency_rows' => []];
+    }
+    $data[$type]['count'] += (int)$r['count'];
+    $data[$type]['total_value'] += (float)$r['total_value'];
+    $data[$type]['currency_rows'][] = $r;
+}
+usort($data, fn($a, $b) => $b['total_value'] <=> $a['total_value']);
 
 $totalCount = 0;
 $totalValue = 0;
@@ -29,6 +43,8 @@ foreach ($data as $r) {
     $totalCount += $r['count'];
     $totalValue += $r['total_value'];
 }
+$totalByCurrency = CurrencyService::groupTotals($rows, 'total_value', 'currency', $pdo);
+$totalValueDisplay = CurrencyService::formatGroupedTotals($totalByCurrency, ' • ', $pdo);
 
 // Define type labels
 $typeLabels = [
@@ -81,7 +97,7 @@ $typeLabels = [
           </div>
           <div>
             <small class="text-muted text-uppercase fw-semibold" style="font-size:.75rem;">Total Value</small>
-            <h4 class="fw-bold mb-0 text-dark"><?= money($totalValue) ?></h4>
+            <h4 class="fw-bold mb-0 text-dark"><?= $totalValueDisplay ?></h4>
           </div>
         </div>
       </div>
@@ -127,8 +143,8 @@ $typeLabels = [
                 </span>
               </td>
               <td class="text-end fw-semibold"><?= $row['count'] ?></td>
-              <td class="text-end"><?= money($row['total_value']) ?></td>
-              <td class="text-end"><?= number_format(($row['total_value'] / $totalValue) * 100, 2) ?>%</td>
+              <td class="text-end"><?= CurrencyService::formatGroupedTotals(CurrencyService::groupTotals($row['currency_rows'], 'total_value', 'currency', $pdo), ' • ', $pdo) ?></td>
+              <td class="text-end"><?= $totalValue > 0 ? number_format(($row['total_value'] / $totalValue) * 100, 2) : '0.00' ?>%</td>
             </tr>
             <?php endforeach; ?>
           <?php endif; ?>

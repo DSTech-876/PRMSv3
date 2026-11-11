@@ -219,6 +219,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             notifyNextApprover($id, $nextApproval['role']);
         } else {
             notifyRequestFinalized($id, $nextStatus);
+            /* Final approval granted: broadcast to every user involved in the
+               procurement lifecycle so document preparation can begin. */
+            require_once $_SERVER['DOCUMENT_ROOT'] . '/services/ProcurementApprovalNotificationService.php';
+            ProcurementApprovalNotificationService::notifyApprovalGranted($id, $nextStatus, $pdo);
         }
         /* Keep procurement informed of approval progress (parity with the
            HOD / GC / Finance approval endpoints) */

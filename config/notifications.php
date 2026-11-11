@@ -73,20 +73,23 @@ if (!function_exists('he')) {
     }
 }
 
+require_once __DIR__ . '/../services/CurrencyService.php';
+
 if (!function_exists('normalizeCurrency')) {
-    function normalizeCurrency(?string $currency = 'JMD'): string {
-        $currency = strtoupper(trim($currency ?? 'JMD'));
-        // Fix common typo: USB → USD
-        if ($currency === 'USB') {
-            $currency = 'USD';
-        }
-        return in_array($currency, ['JMD', 'USD'], true) ? $currency : 'JMD';
+    function normalizeCurrency(?string $currency = null): string {
+        return CurrencyService::normalize($currency);
+    }
+}
+
+if (!function_exists('currencySymbol')) {
+    function currencySymbol(?string $currency = null): string {
+        return CurrencyService::symbol($currency);
     }
 }
 
 if (!function_exists('formatCurrency')) {
-    function formatCurrency(float $amount, string $currency = 'JMD'): string {
-        return normalizeCurrency($currency) . ' ' . number_format($amount, 2);
+    function formatCurrency(float $amount, ?string $currency = null): string {
+        return CurrencyService::formatCode($amount, $currency);
     }
 }
 

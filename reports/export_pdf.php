@@ -19,6 +19,9 @@ ini_set('display_errors', '0');
 
 try {
     $reportType = $_GET['report'] ?? 'branch_outstanding';
+    /* Reporting currency: explicit ?currency= filter, else the system default. */
+    $reportCurrency = CurrencyService::normalize($_GET['currency'] ?? null, $pdo);
+    $curSym = CurrencyService::symbol($reportCurrency, $pdo);
     $date = date('d M Y');
     $time = date('g:i A');
     $procurementVisibilityWhere = (function_exists('isProcurementVisibilityRestrictedRole')
@@ -50,7 +53,7 @@ try {
                 $num = $i + 1;
                 $status = htmlspecialchars(ucfirst(strtolower(str_replace('_', ' ', $r['status'] ?? 'Unknown'))));
                 $count = intval($r['count']);
-                $value = '$' . number_format(floatval($r['total_value']), 2);
+                $value = $curSym . number_format(floatval($r['total_value']), 2);
                 $rows .= "<tr style=\"background:{$bg};\"><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:center;color:#6c757d;\">{$num}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;font-weight:600;\">{$status}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$count}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$value}</td></tr>";
             }
             
@@ -83,7 +86,7 @@ HTML;
             $num = $i + 1;
             $type = htmlspecialchars($typeLabels[$r['type'] ?? 'UNSPECIFIED'] ?? $r['type']);
             $count = intval($r['count']);
-            $value = '$' . number_format(floatval($r['total_value']), 2);
+            $value = $curSym . number_format(floatval($r['total_value']), 2);
             $rows .= "<tr style=\"background:{$bg};\"><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:center;color:#6c757d;\">{$num}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;font-weight:600;\">{$type}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$count}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$value}</td></tr>";
         }
         
@@ -108,7 +111,7 @@ HTML;
             $num = $i + 1;
             $branch = htmlspecialchars($r['branch_name'] ?? 'Unknown');
             $count = intval($r['count']);
-            $value = '$' . number_format(floatval($r['total_value']), 2);
+            $value = $curSym . number_format(floatval($r['total_value']), 2);
             $rows .= "<tr style=\"background:{$bg};\"><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:center;color:#6c757d;\">{$num}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;font-weight:600;\">{$branch}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$count}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$value}</td></tr>";
         }
         
@@ -158,7 +161,7 @@ HTML;
             $num = $i + 1;
             $status = htmlspecialchars($r['status'] ?? 'Unknown');
             $count = intval($r['count']);
-            $value = '$' . number_format(floatval($r['total_amount']), 2);
+            $value = $curSym . number_format(floatval($r['total_amount']), 2);
             $rows .= "<tr style=\"background:{$bg};\"><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:center;color:#6c757d;\">{$num}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;font-weight:600;\">{$status}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$count}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$value}</td></tr>";
         }
         
@@ -183,7 +186,7 @@ HTML;
             $bg = ($i % 2 === 0) ? '#ffffff' : '#f8f9fa';
             $period = htmlspecialchars($r['period'] ?? 'Unknown');
             $count = intval($r['count']);
-            $value = '$' . number_format(floatval($r['total']), 2);
+            $value = $curSym . number_format(floatval($r['total']), 2);
             $rows .= "<tr style=\"background:{$bg};\"><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:center;color:#6c757d;\">{$period}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$count}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$value}</td></tr>";
         }
         
@@ -207,7 +210,7 @@ HTML;
             $bg = ($i % 2 === 0) ? '#ffffff' : '#f8f9fa';
             $period = htmlspecialchars($r['period'] ?? 'Unknown');
             $count = intval($r['count']);
-            $value = '$' . number_format(floatval($r['total']), 2);
+            $value = $curSym . number_format(floatval($r['total']), 2);
             $rows .= "<tr style=\"background:{$bg};\"><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:center;color:#6c757d;\">{$period}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$count}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$value}</td></tr>";
         }
         
@@ -233,14 +236,14 @@ HTML;
             $num = $i + 1;
             $date = htmlspecialchars($r['commitment_date'] ?? 'N/A');
             $reqNum = htmlspecialchars($r['request_number'] ?? 'N/A');
-            $commitment = '$' . number_format(floatval($r['estimated_value'] ?? 0), 2);
+            $commitment = $curSym . number_format(floatval($r['estimated_value'] ?? 0), 2);
             $outstanding = floatval($r['outstanding'] ?? 0);
-            $outstandingStr = '$' . number_format($outstanding, 2);
+            $outstandingStr = $curSym . number_format($outstanding, 2);
             $totalOutstanding += $outstanding;
             $rows .= "<tr style=\"background:{$bg};\"><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:center;color:#6c757d;\">{$num}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;\">{$date}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;\">{$reqNum}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$commitment}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;color:#dc3545;font-weight:700;\">{$outstandingStr}</td></tr>";
         }
         
-        $fmtTotal = '$' . number_format($totalOutstanding, 2);
+        $fmtTotal = $curSym . number_format($totalOutstanding, 2);
         
         $html = <<<HTML
 <!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:'Helvetica','Arial',sans-serif;color:#212529;font-size:12px;margin:0;padding:0;}</style></head><body>
@@ -275,9 +278,9 @@ HTML;
         $grandPaid = (float) ($totals['grand_paid'] ?? 0);
         $grandOutstanding = (float) ($totals['grand_outstanding'] ?? 0);
         
-        $fmtInvoiced    = '$' . number_format($grandInvoiced, 2);
-        $fmtPaid        = '$' . number_format($grandPaid, 2);
-        $fmtOutstanding = '$' . number_format($grandOutstanding, 2);
+        $fmtInvoiced    = $curSym . number_format($grandInvoiced, 2);
+        $fmtPaid        = $curSym . number_format($grandPaid, 2);
+        $fmtOutstanding = $curSym . number_format($grandOutstanding, 2);
         
         $rows = '';
         foreach ($data as $i => $r) {
@@ -286,9 +289,9 @@ HTML;
             $outColor = $outVal > 0 ? '#dc3545' : '#198754';
             $num = $i + 1;
             $name = htmlspecialchars($r['branch_name'] ?? 'Unknown');
-            $inv = '$' . number_format(floatval($r['total_invoiced'] ?? 0), 2);
-            $pd  = '$' . number_format(floatval($r['total_paid'] ?? 0), 2);
-            $out = '$' . number_format($outVal, 2);
+            $inv = $curSym . number_format(floatval($r['total_invoiced'] ?? 0), 2);
+            $pd  = $curSym . number_format(floatval($r['total_paid'] ?? 0), 2);
+            $out = $curSym . number_format($outVal, 2);
             $rows .= "<tr style=\"background:{$bg};\"><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:center;color:#6c757d;\">{$num}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;font-weight:600;\">{$name}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$inv}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;color:#198754;\">{$pd}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;font-weight:700;color:{$outColor};\">{$out}</td></tr>";
         }
 

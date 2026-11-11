@@ -89,6 +89,12 @@ if (!empty($_GET['workflow_path'])) {
     $params[':workflow_path'] = $_GET['workflow_path'];
 }
 
+/* Currency filter */
+if (!empty($_GET['currency']) && CurrencyService::isSupported($_GET['currency'], $pdo)) {
+    $where[] = "pr.currency = :currency";
+    $params[':currency'] = CurrencyService::normalize($_GET['currency'], $pdo);
+}
+
 // Restrict Requestor to only their own requests
 if (isset($_SESSION['role_name']) && $_SESSION['role_name'] === 'Requestor') {
     $where[] = "pr.created_by = :requestor_id";
@@ -610,6 +616,19 @@ $budgetYears = $pdo->query("SELECT DISTINCT YEAR(request_date) AS yr FROM procur
                     <option value="">All Paths</option>
                     <option value="STANDARD" <?= ($_GET['workflow_path'] ?? '') === 'STANDARD' ? 'selected' : '' ?>>Standard Procurement</option>
                     <option value="NON_PO_SKIP_RFQ" <?= ($_GET['workflow_path'] ?? '') === 'NON_PO_SKIP_RFQ' ? 'selected' : '' ?>>Non-PO / Skip RFQ</option>
+                </select>
+            </div>
+
+            <div class="col-md-2 col-sm-6">
+                <label class="form-label small text-muted" style="font-weight: 600;">Currency</label>
+                <select name="currency" class="form-select">
+                    <option value="">All Currencies</option>
+                    <?php foreach (CurrencyService::selectOptions($pdo) as $__opt): ?>
+                        <option value="<?= htmlspecialchars($__opt['code']) ?>"
+                          <?= ($_GET['currency'] ?? '') === $__opt['code'] ? 'selected' : '' ?>>
+                          <?= htmlspecialchars($__opt['code']) ?>
+                        </option>
+                    <?php endforeach; ?>
                 </select>
             </div>
 
