@@ -47,163 +47,147 @@ foreach ($params as $key => $val) {
 }
 $countStmt->execute();
 $totalRows = $countStmt->fetchColumn();
-$totalPages = ceil($totalRows / $perPage);
 
+require_once $_SERVER['DOCUMENT_ROOT'].'/config/helper.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/includes/ui.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/includes/pagination.php';
+
+$statusOptions = [
+    'DRAFT' => 'Draft', 'SUBMITTED' => 'Submitted', 'HOD_APPROVED' => 'HOD Approved',
+    'FUNDS_VERIFIED' => 'Funds Verified', 'DIRECTOR_APPROVED' => 'Director Approved',
+    'PROCUREMENT_STAGE' => 'Procurement Stage', 'EVALUATION_STAGE' => 'Evaluation Stage',
+    'COMMITTEE_RECOMMENDED' => 'Committee Recommended', 'GC_APPROVED' => 'GC Approved',
+    'AWARDED' => 'Awarded', 'COMPLETED' => 'Completed', 'DECLINED' => 'Declined',
+];
+$methodOptions = [
+    'SINGLE_SOURCE' => 'Single Source',
+    'RESTRICTED_BIDDING' => 'Restricted Bidding',
+    'NATIONAL_COMPETITIVE' => 'National Competitive',
+    'INTERNATIONAL_COMPETITIVE' => 'International Competitive',
+];
+$filtersActive = !empty($filters);
 ?>
-<div style="max-width: 1400px; margin: 2rem auto; padding: 0 1rem;">
-    <!-- Header -->
-    <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1rem;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-            <div style="display: flex; align-items: center;">
-                <span style="font-size: 1.75em; margin-right: 1rem;">📋</span>
-                <div>
-                    <h2 style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #333;">Management Approval Queue <span style="font-size: 0.875rem; color: #999; font-weight: 400;">(<?= $totalRows ?> requests)</span></h2>
-                </div>
-            </div>
-            <div style="display: flex; gap: 0.75rem;">
-                <a href="/dashboard/metrics.php" style="background: white; border: 1px solid #4facfe; color: #4facfe; padding: 0.625rem 1.25rem; border-radius: 8px; text-decoration: none; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
-                    <i class="bi bi-graph-up" style="margin-right: 0.5rem;"></i>Metrics
-                </a>
-                <a href="/dashboard/monthly.php" style="background: white; border: 1px solid #43e97b; color: #43e97b; padding: 0.625rem 1.25rem; border-radius: 8px; text-decoration: none; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
-                    <i class="bi bi-bar-chart-line" style="margin-right: 0.5rem;"></i>Monthly Trend
-                </a>
-            </div>
-        </div>
+<div class="ui-page">
+<?php
+ui_page_header([
+    'title'       => 'Management Approval Queue',
+    'subtitle'    => number_format((int)$totalRows) . ' procurement requests matching the current filters',
+    'icon'        => 'bi-list-check',
+    'breadcrumbs' => [
+        ['label' => 'Home', 'href' => '/dashboard/index.php'],
+        ['label' => 'Management'],
+        ['label' => 'Approval Queue'],
+    ],
+    'actions' => [
+        ['label' => 'Metrics', 'href' => '/dashboard/metrics.php', 'icon' => 'bi-graph-up'],
+        ['label' => 'Monthly Trend', 'href' => '/dashboard/monthly.php', 'icon' => 'bi-bar-chart-line'],
+    ],
+]);
+?>
 
-        <!-- Filter Form -->
-        <form method="get" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
-            <input type="text" name="search" style="padding: 0.625rem 1rem; border: 1px solid #ddd; border-radius: 8px; font-size: 0.875rem; width: 100%;" placeholder="🔍 Search title or requestor" value="<?= htmlspecialchars($filters['search'] ?? '') ?>">
-            <select name="status" style="padding: 0.625rem 1rem; border: 1px solid #ddd; border-radius: 8px; font-size: 0.875rem; width: 100%; background: white; cursor: pointer;">
-                <option value="">All Status</option>
-                <option value="DRAFT" <?= (isset($filters['status']) && $filters['status'] == 'DRAFT') ? 'selected' : '' ?>>Draft</option>
-                <option value="SUBMITTED" <?= (isset($filters['status']) && $filters['status'] == 'SUBMITTED') ? 'selected' : '' ?>>Submitted</option>
-                <option value="HOD_APPROVED" <?= (isset($filters['status']) && $filters['status'] == 'HOD_APPROVED') ? 'selected' : '' ?>>HOD Approved</option>
-                <option value="FUNDS_VERIFIED" <?= (isset($filters['status']) && $filters['status'] == 'FUNDS_VERIFIED') ? 'selected' : '' ?>>Funds Verified</option>
-                <option value="DIRECTOR_APPROVED" <?= (isset($filters['status']) && $filters['status'] == 'DIRECTOR_APPROVED') ? 'selected' : '' ?>>Director Approved</option>
-                <option value="PROCUREMENT_STAGE" <?= (isset($filters['status']) && $filters['status'] == 'PROCUREMENT_STAGE') ? 'selected' : '' ?>>Procurement Stage</option>
-                <option value="EVALUATION_STAGE" <?= (isset($filters['status']) && $filters['status'] == 'EVALUATION_STAGE') ? 'selected' : '' ?>>Evaluation Stage</option>
-                <option value="COMMITTEE_RECOMMENDED" <?= (isset($filters['status']) && $filters['status'] == 'COMMITTEE_RECOMMENDED') ? 'selected' : '' ?>>Committee Recommended</option>
-                <option value="GC_APPROVED" <?= (isset($filters['status']) && $filters['status'] == 'GC_APPROVED') ? 'selected' : '' ?>>GC Approved</option>
-                <option value="AWARDED" <?= (isset($filters['status']) && $filters['status'] == 'AWARDED') ? 'selected' : '' ?>>Awarded</option>
-                <option value="COMPLETED" <?= (isset($filters['status']) && $filters['status'] == 'COMPLETED') ? 'selected' : '' ?>>Completed</option>
-                <option value="DECLINED" <?= (isset($filters['status']) && $filters['status'] == 'DECLINED') ? 'selected' : '' ?>>Declined</option>
-            </select>
-            <select name="stage" style="padding: 0.625rem 1rem; border: 1px solid #ddd; border-radius: 8px; font-size: 0.875rem; width: 100%; background: white; cursor: pointer;">
-                <option value="">All Methods</option>
-                <option value="SINGLE_SOURCE" <?= (isset($filters['stage']) && $filters['stage'] == 'SINGLE_SOURCE') ? 'selected' : '' ?>>Single Source</option>
-                <option value="RESTRICTED_BIDDING" <?= (isset($filters['stage']) && $filters['stage'] == 'RESTRICTED_BIDDING') ? 'selected' : '' ?>>Restricted Bidding</option>
-                <option value="NATIONAL_COMPETITIVE" <?= (isset($filters['stage']) && $filters['stage'] == 'NATIONAL_COMPETITIVE') ? 'selected' : '' ?>>National Competitive</option>
-                <option value="INTERNATIONAL_COMPETITIVE" <?= (isset($filters['stage']) && $filters['stage'] == 'INTERNATIONAL_COMPETITIVE') ? 'selected' : '' ?>>International Competitive</option>
-            </select>
-            <button type="submit" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: transform 0.3s ease;">Apply Filters</button>
-        </form>
+<details class="ui-filter-panel" data-ui-remember="management-filters"<?= $filtersActive ? ' open' : '' ?>>
+  <summary><i class="bi bi-funnel-fill" aria-hidden="true"></i> Search &amp; Filter<?= $filtersActive ? ' <span class="ui-badge ui-badge--info">active</span>' : '' ?></summary>
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-4 col-sm-6">
+      <label class="form-label small fw-bold text-muted" for="mg-search">Search</label>
+      <input type="search" id="mg-search" name="search" class="form-control form-control-sm"
+             placeholder="Title or requestor" value="<?= htmlspecialchars($filters['search'] ?? '') ?>">
     </div>
+    <div class="col-md-3 col-sm-6">
+      <label class="form-label small fw-bold text-muted" for="mg-status">Status</label>
+      <select name="status" id="mg-status" class="form-select form-select-sm">
+        <option value="">All Status</option>
+        <?php foreach ($statusOptions as $value => $label): ?>
+          <option value="<?= $value ?>" <?= (($filters['status'] ?? '') === $value) ? 'selected' : '' ?>><?= $label ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <label class="form-label small fw-bold text-muted" for="mg-stage">Procurement Method</label>
+      <select name="stage" id="mg-stage" class="form-select form-select-sm">
+        <option value="">All Methods</option>
+        <?php foreach ($methodOptions as $value => $label): ?>
+          <option value="<?= $value ?>" <?= (($filters['stage'] ?? '') === $value) ? 'selected' : '' ?>><?= $label ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-md-2 col-sm-6 d-flex gap-2">
+      <button type="submit" class="ui-action ui-action--primary"><i class="bi bi-funnel" aria-hidden="true"></i><span>Apply</span></button>
+      <a class="ui-action" href="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i><span>Reset</span></a>
+    </div>
+  </form>
+</details>
 
-    <!-- Data Table -->
-    <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1rem;">
-        <div style="overflow-x: auto;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-                <thead style="background: #f5f5f5;">
-                    <tr>
-                        <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0; width: 40px;">#</th>
-                        <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">📌 Title</th>
-                        <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">👤 Requestor</th>
-                        <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">🔄 Method</th>
-                        <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">📋 Status</th>
-                        <th style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">💰 Amount</th>
-                        <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">📅 Created</th>
-                        <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php if (empty($rows)): ?>
-                    <tr>
-                        <td colspan="8" style="text-align: center; color: #999; padding: 2rem 0;">
-                            <span style="font-size: 2em;">😕</span><br>
-                            <span style="display: block; margin-top: 0.5rem;">No procurement requests found for the selected filters.</span>
-                        </td>
-                    </tr>
-                <?php else: ?>
-                <?php foreach ($rows as $i => $row): ?>
-                    <tr style="border-bottom: 1px solid #f0f0f0;">
-                        <td style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333;"><?= ($offset + $i + 1) ?></td>
-                        <td style="padding: 0.75rem 1rem; color: #333;"><?= htmlspecialchars($row['request_number'] . ' - ' . ($row['description'] ?: 'No description')) ?></td>
-                        <td style="padding: 0.75rem 1rem; color: #666;"><?= htmlspecialchars($row['requestor_name']) ?></td>
-                        <td style="padding: 0.75rem 1rem; text-align: center; color: #666;">
-                            <?php
-                            switch ($row['procurement_method']) {
-                                case 'SINGLE_SOURCE': echo 'Single Source'; break;
-                                case 'RESTRICTED_BIDDING': echo 'Restricted Bidding'; break;
-                                case 'NATIONAL_COMPETITIVE': echo 'National Competitive'; break;
-                                case 'INTERNATIONAL_COMPETITIVE': echo 'International Competitive'; break;
-                                default: echo $row['procurement_method'] ?? 'N/A';
-                            }
-                            ?>
-                        </td>
-                        <td style="padding: 0.75rem 1rem; text-align: center;">
-                            <?php
-                            $statusUpper = strtoupper($row['status']);
-                            $mgmtBadgeMap = [
-                                'DRAFT'                 => ['#999', '📝 Draft'],
-                                'SUBMITTED'             => ['#ff9800', '⏳ Submitted'],
-                                'HOD_APPROVED'          => ['#667eea', '👤 HOD Approved'],
-                                'FUNDS_VERIFIED'        => ['#667eea', '💰 Funds Verified'],
-                                'DIRECTOR_APPROVED'     => ['#4facfe', '👤 Director Approved'],
-                                'PROCUREMENT_STAGE'     => ['#4facfe', '📑 Procurement Stage'],
-                                'EVALUATION_STAGE'      => ['#4facfe', '📊 Evaluation Stage'],
-                                'COMMITTEE_RECOMMENDED' => ['#4facfe', '🧾 Committee Recommended'],
-                                'GC_APPROVED'           => ['#43e97b', '🏛 GC Approved'],
-                                'AWARDED'               => ['#43e97b', '🏆 Awarded'],
-                                'COMPLETED'             => ['#43e97b', '✔ Completed'],
-                                'DECLINED'              => ['#f44336', '❌ Declined'],
-                            ];
-                            if (isset($mgmtBadgeMap[$statusUpper])) {
-                                $badgeColor = $mgmtBadgeMap[$statusUpper][0];
-                                $badgeText = $mgmtBadgeMap[$statusUpper][1];
-                                echo '<span style="background: ' . $badgeColor . '; color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; display: inline-block;">' . $badgeText . '</span>';
-                            } else {
-                                echo '<span style="background: #999; color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; display: inline-block;">'.htmlspecialchars($row['status']).'</span>';
-                            }
-                            ?>
-                        </td>
-                        <td style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333;"><?= money($row['estimated_value']) ?></td>
-                        <td style="padding: 0.75rem 1rem; color: #999; font-size: 0.8rem;"><?= date('d M Y', strtotime($row['created_at'])) ?></td>
-                        <td style="padding: 0.75rem 1rem; text-align: center;">
-                            <a href="/procurement/view.php?id=<?= $row['request_id'] ?>" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.75rem; font-weight: 600; display: inline-block; transition: transform 0.3s ease;" title="View">🔎 View</a>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
+<?php
+ui_tabs('management', [
+    ['id' => 'queue',    'label' => 'Approval Queue', 'icon' => 'bi-list-check', 'count' => (int)$totalRows],
+    ['id' => 'analytics','label' => 'Analytics',      'icon' => 'bi-graph-up'],
+    ['id' => 'activity', 'label' => 'Recent Activity','icon' => 'bi-clock-history'],
+]);
 
-    <!-- Pagination -->
-    <?php if ($totalPages > 1): ?>
-        <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; margin-bottom: 1rem; text-align: center;">
-            <div style="display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap;">
-                <?php for ($p = 1; $p <= $totalPages; $p++): ?>
-                    <a href="?<?= http_build_query(array_merge($_GET, ['page' => $p])) ?>" 
-                       style="<?= ($p == $page) ? 'background: #667eea; color: white; font-weight: 600;' : 'background: white; color: #667eea; border: 1px solid #667eea;' ?> padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; transition: all 0.3s ease;">
-                        <?= $p ?>
-                    </a>
-                <?php endfor; ?>
-            </div>
-        </div>
-    <?php endif; ?>
+ui_tabpanel_open('management', 'queue', true);
+ui_card_open(['title' => 'Procurement Requests', 'icon' => 'bi-journal-text', 'flush' => true]);
+ui_table_toolbar('management-queue-table', ['columns' => true, 'export' => true, 'search' => false]);
+/* Server-side pagination is authoritative, so the client-side pager stays off. */
+ui_table_open('management-queue-table', [
+    'paginate' => false,
+    'virtual'  => true,
+    'label'    => 'Management approval queue',
+]);
+?>
+  <thead>
+    <tr>
+      <th scope="col" class="ui-num">#</th>
+      <th scope="col">Title</th>
+      <th scope="col">Requestor</th>
+      <th scope="col">Method</th>
+      <th scope="col">Status</th>
+      <th scope="col" class="ui-num">Amount</th>
+      <th scope="col">Created</th>
+      <th scope="col">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+  <?php if (empty($rows)): ?>
+    <tr><td colspan="8" class="ui-empty">No procurement requests found for the selected filters.</td></tr>
+  <?php else: foreach ($rows as $i => $row): ?>
+    <tr>
+      <td class="ui-num"><?= ($offset + $i + 1) ?></td>
+      <th scope="row" class="ui-cell-wrap"><?= htmlspecialchars($row['request_number'] . ' — ' . ($row['description'] ?: 'No description')) ?></th>
+      <td><?= htmlspecialchars((string)$row['requestor_name']) ?></td>
+      <td class="ui-nowrap"><?= htmlspecialchars($methodOptions[$row['procurement_method'] ?? ''] ?? ($row['procurement_method'] ?? 'N/A')) ?></td>
+      <td><?= ui_status_badge($row['status'], $statusOptions[strtoupper((string)$row['status'])] ?? null) ?></td>
+      <td class="ui-num ui-num--strong"><?= money($row['estimated_value']) ?></td>
+      <td class="ui-nowrap ui-muted-cell"><?= date('d M Y', strtotime((string)$row['created_at'])) ?></td>
+      <td>
+        <a class="ui-action ui-action--sm ui-action--primary" href="/procurement/view.php?id=<?= (int)$row['request_id'] ?>">
+          <i class="bi bi-eye" aria-hidden="true"></i><span>View</span>
+        </a>
+      </td>
+    </tr>
+  <?php endforeach; endif; ?>
+  </tbody>
+<?php
+ui_table_close('management-queue-table', false);
 
-    <!-- Widgets -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
-        <?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/pipeline.php"; ?>
-        <?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/branch_summary.php"; ?>
-    </div>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
-        <?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/commitment_utilization.php"; ?>
-        <?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/monthly_trend.php"; ?>
-    </div>
-    <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;">
-        <?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/recent_activity.php"; ?>
-    </div>
+ob_start();
+renderShowingInfo($page, $perPage, (int)$totalRows);
+renderPagination((int)$totalRows, $perPage, $page, $filters, 'page');
+ui_card_close(ob_get_clean());
+ui_tabpanel_close();
+
+ui_tabpanel_open('management', 'analytics');
+echo '<div class="ui-grid ui-grid--2">';
+include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/pipeline.php';
+include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/branch_summary.php';
+include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/commitment_utilization.php';
+include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/monthly_trend.php';
+echo '</div>';
+ui_tabpanel_close();
+
+ui_tabpanel_open('management', 'activity');
+include $_SERVER['DOCUMENT_ROOT'].'/dashboard/widgets/recent_activity.php';
+ui_tabpanel_close();
+?>
 </div>
 <?php require_once $_SERVER['DOCUMENT_ROOT'].'/includes/footer.php'; ?>

@@ -1,48 +1,75 @@
 <?php
+/**
+ * Viewer / Audit dashboard.
+ *
+ * Read-only oversight view. Permission guard and widget data sources are
+ * unchanged; the layout is split into tabs so the page stays short.
+ */
 $REQUIRE_PERMISSION = 'view_audit_dashboard';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/page_guard.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/includes/ui.php';
 require_once $_SERVER['DOCUMENT_ROOT']."/includes/header.php";
+
+$displayRole = match ($_SESSION['role_name'] ?? '') {
+    'Viewer' => 'Audit / Read-Only User',
+    default  => $_SESSION['role_name'] ?? 'User',
+};
+
+$widgets = __DIR__ . '/widgets/';
 ?>
 
-<div style="max-width: 1400px; margin: 2rem auto; padding: 0 1rem;">
-    <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1rem;">
-        <div style="display: flex; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-            <span style="font-size: 1.75em; margin-right: 1rem;">📊</span>
-            <div>
-                <h2 style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #333;">Viewer / Audit Dashboard</h2>
-                <small style="color: #999; font-size: 0.875rem; display: block; margin-top: 0.25rem;">
-                    Welcome back, <?= htmlspecialchars($_SESSION['full_name']) ?> •
-                    <?php
-                    $displayRole = match ($_SESSION['role_name'] ?? '') {
-                        'Viewer' => 'Audit / Read-Only User',
-                        default => $_SESSION['role_name'] ?? 'User'
-                    };
-                    ?>
-                    <?= htmlspecialchars($displayRole) ?> • <?= date('l, j F Y') ?>
-                </small>
-            </div>
-        </div>
+<div class="ui-page">
 
-        <!-- Widgets Grid -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
-            <?php include __DIR__."/widgets/kpis.php"; ?>
-            <?php include __DIR__."/widgets/alerts.php"; ?>
-        </div>
+<?php
+ui_page_header([
+    'title'    => 'Viewer / Audit Dashboard',
+    'subtitle' => sprintf(
+        'Welcome back, %s • %s • %s',
+        $_SESSION['full_name'] ?? 'User',
+        $displayRole,
+        date('l, j F Y')
+    ),
+    'icon'        => 'bi-clipboard-data',
+    'breadcrumbs' => [
+        ['label' => 'Home', 'href' => '/dashboard/index.php'],
+        ['label' => 'Viewer / Audit Dashboard'],
+    ],
+    'actions' => [
+        ['label' => 'All Requests', 'href' => '/procurement/list.php', 'icon' => 'bi-list-ul', 'variant' => 'primary'],
+        ['label' => 'Reports',      'href' => '/reports/index.php',    'icon' => 'bi-file-earmark-bar-graph'],
+        ['label' => 'Refresh',      'icon' => 'bi-arrow-clockwise', 'onclick' => 'location.reload()', 'title' => 'Refresh page'],
+    ],
+]);
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
-            <?php include __DIR__."/widgets/pipeline.php"; ?>
-            <?php include __DIR__."/widgets/branch_summary.php"; ?>
-        </div>
+ui_tabs('viewer', [
+    ['id' => 'overview',  'label' => 'Overview',  'icon' => 'bi-grid-1x2', 'active' => true],
+    ['id' => 'analytics', 'label' => 'Analytics', 'icon' => 'bi-graph-up'],
+    ['id' => 'activity',  'label' => 'Activity',  'icon' => 'bi-clock-history'],
+]);
+?>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
-            <?php include __DIR__."/widgets/overdue_invoices.php"; ?>
-            <?php include __DIR__."/widgets/monthly_trend.php"; ?>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;">
-            <?php include __DIR__."/widgets/recent_activity.php"; ?>
-        </div>
+<?php ui_tabpanel_open('viewer', 'overview', true); ?>
+    <div class="ui-grid ui-grid--2">
+        <div><?php include $widgets . 'kpis.php'; ?></div>
+        <div><?php include $widgets . 'alerts.php'; ?></div>
     </div>
+    <div class="ui-grid ui-grid--2">
+        <div><?php include $widgets . 'pipeline.php'; ?></div>
+        <div><?php include $widgets . 'overdue_invoices.php'; ?></div>
+    </div>
+<?php ui_tabpanel_close(); ?>
+
+<?php ui_tabpanel_open('viewer', 'analytics'); ?>
+    <div class="ui-grid ui-grid--2">
+        <div><?php include $widgets . 'branch_summary.php'; ?></div>
+        <div><?php include $widgets . 'monthly_trend.php'; ?></div>
+    </div>
+<?php ui_tabpanel_close(); ?>
+
+<?php ui_tabpanel_open('viewer', 'activity'); ?>
+    <?php include $widgets . 'recent_activity.php'; ?>
+<?php ui_tabpanel_close(); ?>
+
 </div>
 
 <?php require_once $_SERVER['DOCUMENT_ROOT']."/includes/footer.php"; ?>

@@ -258,510 +258,472 @@ $assetStatusLabels = [
     'SOLD' => ['label' => 'Sold', 'color' => 'secondary'],
 ];
 
+
+/* Bootstrap contextual colour names used by the lifecycle/status maps above
+   are translated to design-system badge variants for consistent styling. */
+$pmoVariant = static function (?string $color): string {
+    return match ($color) {
+        'success'            => 'success',
+        'danger'             => 'danger',
+        'warning'            => 'warning',
+        'info', 'primary'    => 'info',
+        'purple'             => 'purple',
+        default              => 'neutral',
+    };
+};
+
+require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/ui.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-building-gear"></i> Property Management Officer
-        <small class="text-muted fs-6 ms-2">Dashboard</small>
-    </h2>
-    <div class="d-flex gap-2">
-        <a href="/inventory/items/list.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-list-ul"></i> All Items</a>
-        <a href="/inventory/reports/" class="btn btn-outline-dark btn-sm"><i class="bi bi-bar-chart"></i> Reports</a>
-    </div>
-</div>
+<div class="ui-page">
+
+<?php
+ui_page_header([
+    'title'    => 'Property Management Officer',
+    'subtitle' => sprintf(
+        'Welcome back, %s • %s • %s',
+        $_SESSION['full_name'] ?? 'User',
+        $_SESSION['role_name'] ?? 'Property Management Officer',
+        date('l, j F Y')
+    ),
+    'icon'        => 'bi-building-gear',
+    'breadcrumbs' => [
+        ['label' => 'Home',      'href' => '/dashboard/index.php'],
+        ['label' => 'Inventory', 'href' => '/inventory/items/list.php'],
+        ['label' => 'Property Management'],
+    ],
+    'actions' => [
+        ['label' => 'Add Item / Asset', 'href' => '/inventory/items/add.php', 'icon' => 'bi-plus-lg', 'variant' => 'primary'],
+        ['label' => 'All Items',        'href' => '/inventory/items/list.php', 'icon' => 'bi-list-ul'],
+        ['label' => 'Reports',          'href' => '/inventory/reports/',       'icon' => 'bi-bar-chart'],
+        ['label' => 'Refresh',          'icon' => 'bi-arrow-clockwise', 'onclick' => 'location.reload()', 'title' => 'Refresh page'],
+    ],
+]);
+?>
 
 <?php if (!$invReady): ?>
-<div class="alert alert-warning">
-    <i class="bi bi-exclamation-triangle"></i>
-    <strong>Inventory module not yet set up.</strong>
-    A database administrator needs to run
-    <code>migrations/019_inventory_management_system.sql</code> before this module can be used.
-</div>
+    <div class="ui-alert ui-alert--warning">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+        <div>
+            <strong>Inventory module not yet set up.</strong>
+            A database administrator needs to run
+            <code>migrations/019_inventory_management_system.sql</code> before this module can be used.
+        </div>
+    </div>
 <?php else: ?>
 
-<!-- ── Primary KPIs ──────────────────────────────────────────────────── -->
-<div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm bg-primary bg-opacity-10 h-100">
-            <div class="card-body text-center py-4">
-                <h3 class="mb-0"><?= number_format($stats['active_items']) ?></h3>
-                <small class="text-muted">Active Inventory Items</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm bg-info bg-opacity-10 h-100">
-            <div class="card-body text-center py-4">
-                <h3 class="mb-0"><?= number_format($stats['asset_items']) ?></h3>
-                <small class="text-muted">Asset Items</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm bg-success bg-opacity-10 h-100">
-            <div class="card-body text-center py-4">
-                <h3 class="mb-0">$<?= number_format($stats['asset_value'] ?? 0, 0) ?></h3>
-                <small class="text-muted">Asset Value</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm bg-warning bg-opacity-10 h-100">
-            <div class="card-body text-center py-4">
-                <h3 class="mb-0"><?= number_format($stats['serialized_items']) ?></h3>
-                <small class="text-muted">Serialized Items</small>
-            </div>
-        </div>
-    </div>
-</div>
+<?php
+ui_kpi_grid([
+    ['label' => 'Active Inventory Items', 'value' => number_format((int)$stats['active_items']),       'meta' => 'Status ACTIVE',        'icon' => 'bi-box-seam',      'variant' => 'blue',  'href' => '/inventory/items/list.php'],
+    ['label' => 'Asset Items',            'value' => number_format((int)$stats['asset_items']),        'meta' => 'Capitalised assets',   'icon' => 'bi-building-gear', 'variant' => 'purple','href' => '/inventory/items/list.php?domain=ASSET'],
+    ['label' => 'Asset Value',            'value' => '$' . number_format((float)($stats['asset_value'] ?? 0), 0), 'meta' => 'Book value on hand', 'icon' => 'bi-cash-stack', 'variant' => 'green'],
+    ['label' => 'Serialized Items',       'value' => number_format((int)$stats['serialized_items']),   'meta' => $serialCount . ' tracked serials', 'icon' => 'bi-upc-scan', 'variant' => 'amber'],
+    ['label' => 'Low Stock Alerts',       'value' => number_format((int)$stats['low_stock_count']),    'meta' => 'At or below reorder',  'icon' => 'bi-exclamation-triangle', 'variant' => ((int)$stats['low_stock_count'] > 0 ? 'red' : 'slate')],
+    ['label' => 'Expiring (90 days)',     'value' => number_format((int)$expiringCount),               'meta' => 'Shelf-life items',     'icon' => 'bi-hourglass-split', 'variant' => ($expiringCount > 0 ? 'amber' : 'slate')],
+    ['label' => 'Pending Actions',        'value' => number_format((int)$totalPending),                'meta' => 'Across inventory queues', 'icon' => 'bi-bell', 'variant' => ($totalPending > 0 ? 'red' : 'green')],
+    ['label' => 'Workplace Requests',     'value' => number_format((int)$procPendingTotal),            'meta' => 'Procurement pending',  'icon' => 'bi-briefcase', 'variant' => 'slate', 'href' => '/procurement/list.php'],
+]);
 
-<!-- ── Secondary KPIs ───────────────────────────────────────────────── -->
-<div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body text-center py-3">
-                <h4 class="mb-0 text-danger"><?= $stats['low_stock_count'] ?></h4>
-                <small class="text-muted">Low Stock Alerts</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body text-center py-3">
-                <h4 class="mb-0 text-warning"><?= $expiringCount ?></h4>
-                <small class="text-muted">Expiring (90 days)</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body text-center py-3">
-                <h4 class="mb-0 text-primary"><?= $serialCount ?></h4>
-                <small class="text-muted">Tracked Serials</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body text-center py-3">
-                <h4 class="mb-0 <?= $totalPending > 0 ? 'text-danger' : 'text-success' ?>"><?= $totalPending ?></h4>
-                <small class="text-muted">Pending Actions</small>
-            </div>
-        </div>
-    </div>
-</div>
+ui_tabs('pmo', [
+    ['id' => 'overview',    'label' => 'Overview',    'icon' => 'bi-grid-1x2',       'active' => true],
+    ['id' => 'assets',      'label' => 'Assets',      'icon' => 'bi-building-gear'],
+    ['id' => 'registry',    'label' => 'Registry',    'icon' => 'bi-diagram-3-fill'],
+    ['id' => 'txns',        'label' => 'Transactions','icon' => 'bi-clock-history'],
+    ['id' => 'procurement', 'label' => 'Procurement', 'icon' => 'bi-briefcase'],
+]);
+?>
 
-<!-- ── Pending Actions ───────────────────────────────────────────────── -->
-<div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-dark text-dark"><i class="bi bi-bell"></i> Pending Actions</div>
-    <div class="card-body">
-        <div class="row g-3 text-center">
-            <div class="col">
-                <a href="/inventory/requisitions/list.php?status=SUBMITTED" class="text-decoration-none">
-                    <h4 class="text-warning"><?= $pendingReqs ?></h4>
-                    <small>Requisitions</small>
-                </a>
-            </div>
-            <div class="col">
-                <a href="/inventory/receiving/list.php" class="text-decoration-none">
-                    <h4 class="text-info"><?= $pendingGrn ?></h4>
-                    <small>GRNs Pending</small>
-                </a>
-            </div>
-            <div class="col">
-                <a href="/inventory/transfers/list.php?status=PENDING_APPROVAL" class="text-decoration-none">
-                    <h4 class="text-primary"><?= $pendingTransfers ?></h4>
-                    <small>Transfers</small>
-                </a>
-            </div>
-            <div class="col">
-                <a href="/inventory/adjustments/list.php?status=PENDING_APPROVAL" class="text-decoration-none">
-                    <h4 class="text-secondary"><?= $pendingAdj ?></h4>
-                    <small>Adjustments</small>
-                </a>
-            </div>
-            <div class="col">
-                <a href="/inventory/disposal/list.php" class="text-decoration-none">
-                    <h4 class="text-danger"><?= $pendingDisp ?></h4>
-                    <small>Disposals</small>
-                </a>
-            </div>
+<?php ui_tabpanel_open('pmo', 'overview', true); ?>
+    <div class="ui-grid ui-grid--2">
+        <div>
+            <?php
+            ui_card_open(['title' => 'Pending Actions', 'icon' => 'bi-bell']);
+            ui_action_tiles([
+                ['label' => 'Requisitions', 'value' => (int)$pendingReqs,      'icon' => 'bi-file-earmark-text',   'href' => '/inventory/requisitions/list.php?status=SUBMITTED',       'variant' => 'amber'],
+                ['label' => 'GRNs Pending', 'value' => (int)$pendingGrn,       'icon' => 'bi-box-seam',            'href' => '/inventory/receiving/list.php',                           'variant' => 'blue'],
+                ['label' => 'Transfers',    'value' => (int)$pendingTransfers, 'icon' => 'bi-arrow-left-right',    'href' => '/inventory/transfers/list.php?status=PENDING_APPROVAL',   'variant' => 'purple'],
+                ['label' => 'Adjustments',  'value' => (int)$pendingAdj,       'icon' => 'bi-sliders',             'href' => '/inventory/adjustments/list.php?status=PENDING_APPROVAL', 'variant' => 'slate'],
+                ['label' => 'Disposals',    'value' => (int)$pendingDisp,      'icon' => 'bi-trash3',              'href' => '/inventory/disposal/list.php',                            'variant' => 'red'],
+            ]);
+            ui_card_close();
+            ?>
         </div>
-    </div>
-</div>
-
-<div class="row g-3 mb-4">
-    <!-- ── Quick Actions ────────────────────────────────────────────── -->
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-dark text-dark"><i class="bi bi-lightning"></i> Quick Actions</div>
-            <div class="card-body d-grid gap-2">
-                <a href="/inventory/items/add.php" class="btn btn-outline-dark btn-sm"><i class="bi bi-plus-lg"></i> Add Item / Asset</a>
-                <a href="/inventory/receiving/add.php" class="btn btn-outline-success btn-sm"><i class="bi bi-box-seam"></i> Record GRN</a>
-                <a href="/inventory/issuing/add.php" class="btn btn-outline-info btn-sm"><i class="bi bi-box-arrow-right"></i> Issue Stock</a>
-                <a href="/inventory/transfers/add.php" class="btn btn-outline-warning btn-sm"><i class="bi bi-arrow-left-right"></i> Transfer</a>
-                <a href="/inventory/disposal/add.php" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash3"></i> Disposal Request</a>
-                <a href="/inventory/stocktake/add.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-clipboard-data"></i> Stock Count</a>
-                <a href="/inventory/items/list.php?domain=ASSET" class="btn btn-outline-primary btn-sm"><i class="bi bi-building-gear"></i> View Assets</a>
-            </div>
+        <div>
+            <?php
+            ui_card_open(['title' => 'Quick Actions', 'icon' => 'bi-lightning-charge']);
+            echo '<div class="ui-action-stack">';
+            ui_actions([
+                ['label' => 'Add Item / Asset',  'href' => '/inventory/items/add.php',          'icon' => 'bi-plus-lg', 'variant' => 'primary'],
+                ['label' => 'Record GRN',        'href' => '/inventory/receiving/add.php',      'icon' => 'bi-box-seam'],
+                ['label' => 'Issue Stock',       'href' => '/inventory/issuing/add.php',        'icon' => 'bi-box-arrow-right'],
+                ['label' => 'Transfer',          'href' => '/inventory/transfers/add.php',      'icon' => 'bi-arrow-left-right'],
+                ['label' => 'Disposal Request',  'href' => '/inventory/disposal/add.php',       'icon' => 'bi-trash3'],
+                ['label' => 'Stock Count',       'href' => '/inventory/stocktake/add.php',      'icon' => 'bi-clipboard-data'],
+                ['label' => 'View Assets',       'href' => '/inventory/items/list.php?domain=ASSET', 'icon' => 'bi-building-gear'],
+            ]);
+            echo '</div>';
+            ui_card_close();
+            ?>
         </div>
     </div>
 
-    <!-- ── Serial Number Lifecycle Status ───────────────────────────── -->
-    <div class="col-md-9">
-        <?php if (!empty($lifecycleStats)): ?>
-        <div class="card border-0 shadow-sm mb-3">
-            <div class="card-header bg-dark text-white"><i class="bi bi-diagram-3"></i> Asset Lifecycle Status</div>
-            <div class="card-body">
-                <div class="row g-2 text-center">
-                    <?php foreach ($lifecycleLabels as $status => $meta): ?>
-                    <div class="col">
-                        <div class="p-2 rounded bg-<?= $meta['color'] ?> bg-opacity-10 border border-<?= $meta['color'] ?> border-opacity-25">
-                            <h5 class="mb-0 text-<?= $meta['color'] ?>"><?= $lifecycleStats[$status] ?? 0 ?></h5>
-                            <small class="text-muted"><?= $meta['label'] ?></small>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-                <!-- Lifecycle chain visualization -->
-                <div class="mt-3 d-flex align-items-center flex-wrap gap-1 small text-muted">
-                    <span class="badge bg-light text-dark border">PR #</span>
-                    <i class="bi bi-arrow-right"></i>
-                    <span class="badge bg-light text-dark border">PO #</span>
-                    <i class="bi bi-arrow-right"></i>
-                    <span class="badge bg-light text-dark border">Invoice #</span>
-                    <i class="bi bi-arrow-right"></i>
-                    <span class="badge bg-primary">Serial #</span>
-                    <i class="bi bi-arrow-right"></i>
-                    <span class="badge bg-light text-dark border">GRN #</span>
-                    <i class="bi bi-arrow-right"></i>
-                    <span class="badge bg-light text-dark border">DGC Asset #</span>
-                    <i class="bi bi-arrow-right"></i>
-                    <span class="badge bg-light text-dark border">Issue Req #</span>
-                    <i class="bi bi-arrow-right"></i>
-                    <span class="badge bg-light text-dark border">BOS</span>
-                    <i class="bi bi-arrow-right"></i>
-                    <span class="badge bg-danger">Disposed</span>
-                </div>
-            </div>
-        </div>
-        <?php endif; ?>
-
-        <!-- ── Top Assets by Value ───────────────────────────────────── -->
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-dark text-dark"><i class="bi bi-trophy"></i> Top Assets by Value</div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 small">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>Item</th>
-                                <th>Category</th>
-                                <th class="text-center">Serialized</th>
-                                <th class="text-end">Qty</th>
-                                <th class="text-end">Value</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($topAssets)): ?>
-                            <tr><td colspan="5" class="text-center text-muted py-4">No assets recorded yet</td></tr>
-                            <?php else: foreach ($topAssets as $ta): ?>
-                            <tr>
-                                <td>
-                                    <code><?= htmlspecialchars($ta['item_code']) ?></code>
-                                    <?= htmlspecialchars($ta['item_name']) ?>
-                                </td>
-                                <td><?= htmlspecialchars($ta['category_name']) ?></td>
-                                <td class="text-center">
-                                    <?= $ta['serial_number_flag']
-                                        ? '<span class="badge bg-success">Yes</span>'
-                                        : '<span class="badge bg-secondary">No</span>' ?>
-                                </td>
-                                <td class="text-end"><?= number_format($ta['total_qty'], 0) ?></td>
-                                <td class="text-end fw-bold">$<?= number_format($ta['total_value'], 2) ?></td>
-                            </tr>
-                            <?php endforeach; endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+    <?php if (!empty($lifecycleStats)): ?>
+    <?php
+    ui_card_open(['title' => 'Asset Lifecycle Status', 'icon' => 'bi-diagram-3']);
+    $lifecycleTiles = [];
+    foreach ($lifecycleLabels as $status => $meta) {
+        $lifecycleTiles[] = [
+            'label'   => $meta['label'],
+            'value'   => (int)($lifecycleStats[$status] ?? 0),
+            'variant' => $pmoVariant($meta['color']),
+        ];
+    }
+    ui_action_tiles($lifecycleTiles);
+    ?>
+    <div class="ui-chain" aria-label="Asset lifecycle chain">
+        <span class="ui-chain__node">PR #</span>
+        <span class="ui-chain__node">PO #</span>
+        <span class="ui-chain__node">Invoice #</span>
+        <span class="ui-chain__node ui-chain__node--active">Serial #</span>
+        <span class="ui-chain__node">GRN #</span>
+        <span class="ui-chain__node">DGC Asset #</span>
+        <span class="ui-chain__node">Issue Req #</span>
+        <span class="ui-chain__node">BOS</span>
+        <span class="ui-chain__node ui-chain__node--end">Disposed</span>
     </div>
-</div>
+    <?php ui_card_close(); ?>
+    <?php endif; ?>
+<?php ui_tabpanel_close(); ?>
 
-<!-- ── Recent Serialized Assets ─────────────────────────────────────── -->
-<?php if (!empty($recentSerials ?? [])): ?>
-<div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-upc-scan"></i> Recent Serial Number Registrations</span>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 small">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Serial #</th>
-                        <th>Item</th>
-                        <th>DGC Asset #</th>
-                        <th>PO #</th>
-                        <th>GRN #</th>
-                        <th>Issued To</th>
-                        <th>Status</th>
-                        <th>Registered</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($recentSerials as $rs):
-                        $lbl = $lifecycleLabels[$rs['lifecycle_status']] ?? ['label' => $rs['lifecycle_status'], 'color' => 'secondary'];
-                    ?>
-                    <tr>
-                        <td><code><?= htmlspecialchars($rs['serial_number']) ?></code></td>
-                        <td>
-                            <small class="text-muted"><?= htmlspecialchars($rs['item_code']) ?></small><br>
-                            <?= htmlspecialchars($rs['item_name']) ?>
-                        </td>
-                        <td><?= htmlspecialchars($rs['dgc_asset_number'] ?? '—') ?></td>
-                        <td><?= htmlspecialchars($rs['po_number'] ?? '—') ?></td>
-                        <td><?= htmlspecialchars($rs['grn_number'] ?? '—') ?></td>
-                        <td><?= htmlspecialchars($rs['issued_to'] ?? '—') ?></td>
-                        <td><span class="badge bg-<?= $lbl['color'] ?>"><?= $lbl['label'] ?></span></td>
-                        <td><?= date('Y-m-d', strtotime($rs['created_at'])) ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
-
-<!-- ── Procurement → Asset → Room Registry ────────────────────────────── -->
-<div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-dark text-dark">
-        <i class="bi bi-diagram-3-fill"></i> Procurement → Asset → Room Registry Placement
-    </div>
-    <div class="card-body p-0">
-        <?php if (!$assetRegistryReady): ?>
-            <div class="alert alert-info m-3 mb-0">
-                Run migration <code>migrations/2026_05_26_asset_room_registry_and_movement.sql</code> to enable room registry placement, movement history, and 6–12 month condition/depreciation review tracking.
-            </div>
-        <?php else: ?>
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 small">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Asset</th>
-                        <th>Procurement Chain</th>
-                        <th>Room Register</th>
-                        <th>Movement</th>
-                        <th>Condition Review</th>
-                        <th>Depreciation Review</th>
-                        <th>Status</th>
-                        <th>BOS</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($assetRegistryRows)): ?>
-                        <tr><td colspan="8" class="text-center text-muted py-4">No serialized assets available.</td></tr>
-                    <?php endif; ?>
-                    <?php foreach ($assetRegistryRows as $ar):
-                        $assetStatus = $assetStatusLabels[$ar['asset_status'] ?? ''] ?? ['label' => ($ar['asset_status'] ?? 'Unknown'), 'color' => 'secondary'];
-                        $conditionDue = '-';
-                        if (!empty($ar['next_condition_review_due_date'])) {
-                            $conditionDue = date('Y-m-d', strtotime($ar['next_condition_review_due_date']));
-                        }
-                        $deprDue = '-';
-                        if (!empty($ar['next_depreciation_review_due_date'])) {
-                            $deprDue = date('Y-m-d', strtotime($ar['next_depreciation_review_due_date']));
-                        }
-                        $condClass = 'secondary';
-                        if (!empty($ar['next_condition_review_due_date'])) {
-                            $condClass = (strtotime($ar['next_condition_review_due_date']) < strtotime('today')) ? 'danger' : ((strtotime($ar['next_condition_review_due_date']) <= strtotime('+180 days')) ? 'warning' : 'success');
-                        }
-                        $deprClass = 'secondary';
-                        if (!empty($ar['next_depreciation_review_due_date'])) {
-                            $deprClass = (strtotime($ar['next_depreciation_review_due_date']) < strtotime('today')) ? 'danger' : ((strtotime($ar['next_depreciation_review_due_date']) <= strtotime('+180 days')) ? 'warning' : 'success');
-                        }
-                    ?>
-                    <tr>
-                        <td>
-                            <code><?= htmlspecialchars($ar['serial_number']) ?></code><br>
-                            <small class="text-muted"><?= htmlspecialchars($ar['item_code']) ?></small> <?= htmlspecialchars($ar['item_name']) ?><br>
-                            <small class="text-muted">DGC Asset: <?= htmlspecialchars($ar['dgc_asset_number'] ?? '—') ?></small>
-                        </td>
-                        <td>
-                            <small>PR: <strong><?= htmlspecialchars($ar['purchase_req_number'] ?? '—') ?></strong></small><br>
-                            <small>PO: <strong><?= htmlspecialchars($ar['po_number'] ?? '—') ?></strong></small><br>
-                            <small>Invoice: <strong><?= htmlspecialchars($ar['invoice_number'] ?? '—') ?></strong></small><br>
-                            <small>GRN: <strong><?= htmlspecialchars($ar['grn_number'] ?? '—') ?></strong></small>
-                        </td>
-                        <td><?= htmlspecialchars($ar['room_register'] ?: 'Unassigned') ?></td>
-                        <td>
-                            <span class="badge bg-secondary"><?= (int) $ar['move_count'] ?> move(s)</span><br>
-                            <small class="text-muted"><?= !empty($ar['last_moved_at']) ? date('Y-m-d', strtotime($ar['last_moved_at'])) : 'No movement logged' ?></small>
-                        </td>
-                        <td>
-                            <span class="badge bg-<?= $condClass ?>"><?= htmlspecialchars($ar['current_condition'] ?: 'Not set') ?></span><br>
-                            <small class="text-muted">Due: <?= $conditionDue ?></small>
-                        </td>
-                        <td>
-                            <small>Value: $<?= number_format((float) ($ar['current_book_value'] ?? 0), 2) ?></small><br>
-                            <small class="text-muted">Bought: $<?= number_format((float) ($ar['purchase_value'] ?? 0), 2) ?></small><br>
-                            <span class="badge bg-<?= $deprClass ?>">Due: <?= $deprDue ?></span>
-                        </td>
-                        <td><span class="badge bg-<?= $assetStatus['color'] ?>"><?= htmlspecialchars($assetStatus['label']) ?></span></td>
-                        <td><?= htmlspecialchars($ar['bos_number'] ?? '—') ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php endif; ?>
-    </div>
-</div>
-
-<!-- ── Recent Transactions ───────────────────────────────────────────── -->
-<div class="card border-0 shadow-sm">
-    <div class="card-header bg-dark text-dark"><i class="bi bi-clock-history"></i> Recent Transactions</div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 small">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Date</th>
-                        <th>Type</th>
-                        <th>Item</th>
-                        <th>Location</th>
-                        <th class="text-end">Qty</th>
-                        <th>By</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($recentTxns)): ?>
-                    <tr><td colspan="6" class="text-center text-muted py-4">No recent transactions</td></tr>
-                    <?php else: foreach ($recentTxns as $t): ?>
-                    <tr>
-                        <td><?= date('Y-m-d H:i', strtotime($t['transaction_date'])) ?></td>
-                        <td>
-                            <?php $tc = match($t['transaction_type']) {
-                                'RECEIPT','TRANSFER_IN','ADJUSTMENT_IN','RETURN' => 'success',
-                                'ISSUE','TRANSFER_OUT','ADJUSTMENT_OUT','DISPOSAL' => 'danger',
-                                default => 'secondary'
-                            }; ?>
-                            <span class="badge bg-<?= $tc ?>"><?= str_replace('_', ' ', $t['transaction_type']) ?></span>
-                        </td>
-                        <td><code><?= htmlspecialchars($t['item_code']) ?></code> <?= htmlspecialchars($t['item_name']) ?></td>
-                        <td><?= htmlspecialchars($t['location_code'] ?? '—') ?></td>
-                        <td class="text-end fw-bold"><?= number_format($t['quantity'], 2) ?></td>
-                        <td><?= htmlspecialchars($t['full_name'] ?? '—') ?></td>
-                    </tr>
-                    <?php endforeach; endif; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<?php endif; ?>
-
-<!-- ── Workplace Procurement Requests ────────────────────────────────── -->
-<div class="mt-5">
-    <h4 class="fw-bold border-bottom pb-2 mb-3">
-        <i class="bi bi-briefcase me-2"></i>Workplace Procurement Requests
-    </h4>
-
-    <!-- Status summary pills -->
-    <div class="row g-2 mb-4">
-        <?php foreach ($procStatusLabels as $st => $meta):
-            $cnt = (int)($procStatusCounts[$st] ?? 0);
-            if ($cnt === 0) continue;
+<?php ui_tabpanel_open('pmo', 'assets'); ?>
+    <?php
+    ui_card_open([
+        'title' => 'Top Assets by Value',
+        'icon'  => 'bi-trophy',
+        'flush' => true,
+    ]);
+    if (empty($topAssets)) {
+        echo '<div class="ui-card__pad">';
+        ui_empty('No assets recorded yet', 'bi-box');
+        echo '</div>';
+    } else {
+        ui_table_toolbar('pmo-assets-table', ['placeholder' => 'Search item or category…']);
+        ui_table_open('pmo-assets-table', ['perPage' => 15, 'label' => 'Top assets by value']);
         ?>
-        <div class="col-auto">
-            <a href="/procurement/list.php?status=<?= urlencode($st) ?>" class="text-decoration-none">
-                <div class="card border-0 shadow-sm text-center px-3 py-2 bg-<?= $meta['color'] ?> bg-opacity-10 border-<?= $meta['color'] ?> border-opacity-25">
-                    <div class="fw-bold text-<?= $meta['color'] ?> fs-5"><?= $cnt ?></div>
-                    <small class="text-muted"><?= $meta['label'] ?></small>
-                </div>
-            </a>
-        </div>
+        <thead>
+            <tr>
+                <th scope="col" data-sortable>Item</th>
+                <th scope="col" data-sortable>Category</th>
+                <th scope="col" data-sortable>Serialized</th>
+                <th scope="col" class="ui-num" data-sortable>Qty</th>
+                <th scope="col" class="ui-num" data-sortable>Value</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($topAssets as $ta): ?>
+            <tr>
+                <th scope="row"><code><?= ui_e($ta['item_code']) ?></code> <?= ui_e($ta['item_name']) ?></th>
+                <td><?= ui_e($ta['category_name']) ?></td>
+                <td><?= $ta['serial_number_flag'] ? ui_badge('Yes', 'success') : ui_badge('No', 'neutral') ?></td>
+                <td class="ui-num"><?= ui_e(number_format((float)$ta['total_qty'], 0)) ?></td>
+                <td class="ui-num ui-num--strong">$<?= ui_e(number_format((float)$ta['total_value'], 2)) ?></td>
+            </tr>
         <?php endforeach; ?>
+        </tbody>
+        <?php
+        ui_table_close('pmo-assets-table');
+    }
+    ui_card_close();
+    ?>
 
-        <div class="col-auto ms-auto d-flex align-items-center">
-            <a href="/procurement/list.php" class="btn btn-outline-dark btn-sm">
-                <i class="bi bi-list-ul me-1"></i>View All Requests
-            </a>
-        </div>
-    </div>
+    <?php if (!empty($recentSerials ?? [])): ?>
+    <?php
+    ui_card_open([
+        'title' => 'Recent Serial Number Registrations',
+        'icon'  => 'bi-upc-scan',
+        'flush' => true,
+    ]);
+    ui_table_toolbar('pmo-serials-table', ['placeholder' => 'Search serial, item or asset number…']);
+    ui_table_open('pmo-serials-table', ['perPage' => 15, 'label' => 'Recent serial number registrations']);
+    ?>
+    <thead>
+        <tr>
+            <th scope="col" data-sortable>Serial #</th>
+            <th scope="col" data-sortable>Item</th>
+            <th scope="col" data-sortable>DGC Asset #</th>
+            <th scope="col" data-sortable>PO #</th>
+            <th scope="col" data-sortable>GRN #</th>
+            <th scope="col" data-sortable>Issued To</th>
+            <th scope="col" data-sortable>Status</th>
+            <th scope="col" data-sortable>Registered</th>
+        </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($recentSerials as $rs):
+        $lbl = $lifecycleLabels[$rs['lifecycle_status']] ?? ['label' => $rs['lifecycle_status'], 'color' => 'secondary'];
+    ?>
+        <tr>
+            <th scope="row"><code><?= ui_e($rs['serial_number']) ?></code></th>
+            <td>
+                <span class="ui-muted"><?= ui_e($rs['item_code']) ?></span><br>
+                <?= ui_e($rs['item_name']) ?>
+            </td>
+            <td><?= ui_e($rs['dgc_asset_number'] ?? '—') ?></td>
+            <td><?= ui_e($rs['po_number'] ?? '—') ?></td>
+            <td><?= ui_e($rs['grn_number'] ?? '—') ?></td>
+            <td><?= ui_e($rs['issued_to'] ?? '—') ?></td>
+            <td><?= ui_badge((string)$lbl['label'], $pmoVariant($lbl['color'])) ?></td>
+            <td class="ui-muted"><?= ui_e(date('Y-m-d', strtotime((string)$rs['created_at']))) ?></td>
+        </tr>
+    <?php endforeach; ?>
+    </tbody>
+    <?php
+    ui_table_close('pmo-serials-table');
+    ui_card_close();
+    ?>
+    <?php endif; ?>
+<?php ui_tabpanel_close(); ?>
 
-    <!-- Recent requests table -->
-    <div class="card border-0 shadow-sm">
-        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-clock-history me-1"></i> Recent Requests (Last 20)</span>
-            <span class="badge bg-warning text-dark">
-                <?= $procPendingTotal ?> Pending Action
-            </span>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0 small">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Ref #</th>
-                            <th>Description</th>
-                            <th>Requested By</th>
-                            <th class="text-end">Amount</th>
-                            <th>Status</th>
-                            <th>Date</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($recentProcurement)): ?>
-                        <tr>
-                            <td colspan="7" class="text-center text-muted py-4">
-                                No procurement requests found.
-                            </td>
-                        </tr>
-                        <?php else: foreach ($recentProcurement as $pr):
-                            $stMeta = $procStatusLabels[$pr['status']] ?? ['label' => $pr['status'], 'color' => 'secondary'];
-                        ?>
-                        <tr>
-                            <td>
-                                <a href="/procurement/view.php?id=<?= $pr['request_id'] ?>" class="text-decoration-none fw-medium">
-                                    <?= htmlspecialchars($pr['request_number'] ?? '#' . $pr['request_id']) ?>
-                                </a>
-                            </td>
-                            <td class="text-truncate" style="max-width:240px">
-                                <?= htmlspecialchars($pr['description'] ?? '—') ?>
-                            </td>
-                            <td><?= htmlspecialchars($pr['requestor_name'] ?? '—') ?></td>
-                            <td class="text-end fw-semibold">
-                                <?php if ($pr['estimated_value']): ?>
-                                    <?= htmlspecialchars($pr['currency'] ?? 'JMD') ?>
-                                    <?= number_format((float)$pr['estimated_value'], 2) ?>
-                                <?php else: ?>
-                                    —
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <span class="badge bg-<?= $stMeta['color'] ?>">
-                                    <?= $stMeta['label'] ?>
-                                </span>
-                            </td>
-                            <td><?= date('Y-m-d', strtotime($pr['created_at'])) ?></td>
-                            <td>
-                                <a href="/procurement/view.php?id=<?= $pr['request_id'] ?>" class="btn btn-sm btn-outline-secondary">
-                                    <i class="bi bi-eye"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        <?php endforeach; endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+<?php ui_tabpanel_open('pmo', 'registry'); ?>
+    <?php
+    ui_card_open([
+        'title'    => 'Procurement → Asset → Room Registry Placement',
+        'icon'     => 'bi-diagram-3-fill',
+        'subtitle' => 'Full chain of custody with condition and depreciation review scheduling.',
+        'flush'    => true,
+    ]);
+
+    if (!$assetRegistryReady) {
+        echo '<div class="ui-card__pad"><div class="ui-alert ui-alert--info">'
+           . '<i class="bi bi-info-circle" aria-hidden="true"></i><div>'
+           . 'Run migration <code>migrations/2026_05_26_asset_room_registry_and_movement.sql</code> to enable room registry placement, movement history, and 6–12 month condition/depreciation review tracking.'
+           . '</div></div></div>';
+    } elseif (empty($assetRegistryRows)) {
+        echo '<div class="ui-card__pad">';
+        ui_empty('No serialized assets available.', 'bi-box');
+        echo '</div>';
+    } else {
+        ui_table_toolbar('pmo-registry-table', ['placeholder' => 'Search asset, serial or room…']);
+        ui_table_open('pmo-registry-table', ['perPage' => 10, 'label' => 'Asset room registry placement']);
+        ?>
+        <thead>
+            <tr>
+                <th scope="col" data-sortable>Asset</th>
+                <th scope="col">Procurement Chain</th>
+                <th scope="col" data-sortable>Room Register</th>
+                <th scope="col">Movement</th>
+                <th scope="col">Condition Review</th>
+                <th scope="col">Depreciation Review</th>
+                <th scope="col" data-sortable>Status</th>
+                <th scope="col" data-sortable>BOS</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($assetRegistryRows as $ar):
+            $assetStatus = $assetStatusLabels[$ar['asset_status'] ?? ''] ?? ['label' => ($ar['asset_status'] ?? 'Unknown'), 'color' => 'secondary'];
+            $conditionDue = '-';
+            if (!empty($ar['next_condition_review_due_date'])) {
+                $conditionDue = date('Y-m-d', strtotime($ar['next_condition_review_due_date']));
+            }
+            $deprDue = '-';
+            if (!empty($ar['next_depreciation_review_due_date'])) {
+                $deprDue = date('Y-m-d', strtotime($ar['next_depreciation_review_due_date']));
+            }
+            $condClass = 'secondary';
+            if (!empty($ar['next_condition_review_due_date'])) {
+                $condClass = (strtotime($ar['next_condition_review_due_date']) < strtotime('today')) ? 'danger' : ((strtotime($ar['next_condition_review_due_date']) <= strtotime('+180 days')) ? 'warning' : 'success');
+            }
+            $deprClass = 'secondary';
+            if (!empty($ar['next_depreciation_review_due_date'])) {
+                $deprClass = (strtotime($ar['next_depreciation_review_due_date']) < strtotime('today')) ? 'danger' : ((strtotime($ar['next_depreciation_review_due_date']) <= strtotime('+180 days')) ? 'warning' : 'success');
+            }
+        ?>
+            <tr>
+                <th scope="row">
+                    <code><?= ui_e($ar['serial_number']) ?></code><br>
+                    <span class="ui-muted"><?= ui_e($ar['item_code']) ?></span> <?= ui_e($ar['item_name']) ?><br>
+                    <span class="ui-muted">DGC Asset: <?= ui_e($ar['dgc_asset_number'] ?? '—') ?></span>
+                </th>
+                <td>
+                    <dl class="ui-dl ui-dl--compact">
+                        <dt>PR</dt><dd><?= ui_e($ar['purchase_req_number'] ?? '—') ?></dd>
+                        <dt>PO</dt><dd><?= ui_e($ar['po_number'] ?? '—') ?></dd>
+                        <dt>Invoice</dt><dd><?= ui_e($ar['invoice_number'] ?? '—') ?></dd>
+                        <dt>GRN</dt><dd><?= ui_e($ar['grn_number'] ?? '—') ?></dd>
+                    </dl>
+                </td>
+                <td><?= ui_e($ar['room_register'] ?: 'Unassigned') ?></td>
+                <td>
+                    <?= ui_badge((int)$ar['move_count'] . ' move(s)', 'neutral') ?><br>
+                    <span class="ui-muted"><?= !empty($ar['last_moved_at']) ? ui_e(date('Y-m-d', strtotime((string)$ar['last_moved_at']))) : 'No movement logged' ?></span>
+                </td>
+                <td>
+                    <?= ui_badge((string)($ar['current_condition'] ?: 'Not set'), $pmoVariant($condClass)) ?><br>
+                    <span class="ui-muted">Due: <?= ui_e($conditionDue) ?></span>
+                </td>
+                <td>
+                    <span class="ui-num--strong">$<?= ui_e(number_format((float)($ar['current_book_value'] ?? 0), 2)) ?></span><br>
+                    <span class="ui-muted">Bought: $<?= ui_e(number_format((float)($ar['purchase_value'] ?? 0), 2)) ?></span><br>
+                    <?= ui_badge('Due: ' . $deprDue, $pmoVariant($deprClass)) ?>
+                </td>
+                <td><?= ui_badge((string)$assetStatus['label'], $pmoVariant($assetStatus['color'])) ?></td>
+                <td><?= ui_e($ar['bos_number'] ?? '—') ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+        <?php
+        ui_table_close('pmo-registry-table');
+    }
+    ui_card_close();
+    ?>
+<?php ui_tabpanel_close(); ?>
+
+<?php ui_tabpanel_open('pmo', 'txns'); ?>
+    <?php
+    ui_card_open(['title' => 'Recent Transactions', 'icon' => 'bi-clock-history', 'flush' => true]);
+    if (empty($recentTxns)) {
+        echo '<div class="ui-card__pad">';
+        ui_empty('No recent transactions', 'bi-clock-history');
+        echo '</div>';
+    } else {
+        ui_table_toolbar('pmo-txns-table', ['placeholder' => 'Search item, type or location…']);
+        ui_table_open('pmo-txns-table', ['perPage' => 15, 'label' => 'Recent inventory transactions']);
+        ?>
+        <thead>
+            <tr>
+                <th scope="col" data-sortable>Date</th>
+                <th scope="col" data-sortable>Type</th>
+                <th scope="col" data-sortable>Item</th>
+                <th scope="col" data-sortable>Location</th>
+                <th scope="col" class="ui-num" data-sortable>Qty</th>
+                <th scope="col" data-sortable>By</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($recentTxns as $t):
+            $tc = match($t['transaction_type']) {
+                'RECEIPT','TRANSFER_IN','ADJUSTMENT_IN','RETURN' => 'success',
+                'ISSUE','TRANSFER_OUT','ADJUSTMENT_OUT','DISPOSAL' => 'danger',
+                default => 'secondary'
+            };
+        ?>
+            <tr>
+                <td class="ui-muted"><?= ui_e(date('Y-m-d H:i', strtotime((string)$t['transaction_date']))) ?></td>
+                <td><?= ui_badge(str_replace('_', ' ', (string)$t['transaction_type']), $pmoVariant($tc)) ?></td>
+                <th scope="row"><code><?= ui_e($t['item_code']) ?></code> <?= ui_e($t['item_name']) ?></th>
+                <td><?= ui_e($t['location_code'] ?? '—') ?></td>
+                <td class="ui-num ui-num--strong"><?= ui_e(number_format((float)$t['quantity'], 2)) ?></td>
+                <td><?= ui_e($t['full_name'] ?? '—') ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+        <?php
+        ui_table_close('pmo-txns-table');
+    }
+    ui_card_close();
+    ?>
+<?php ui_tabpanel_close(); ?>
+
+<?php endif; /* $invReady */ ?>
+
+<?php
+/* Workplace procurement is available regardless of inventory module state. */
+if ($invReady) {
+    ui_tabpanel_open('pmo', 'procurement');
+}
+?>
+    <?php
+    $procTiles = [];
+    foreach ($procStatusLabels as $st => $meta) {
+        $cnt = (int)($procStatusCounts[$st] ?? 0);
+        if ($cnt === 0) continue;
+        $procTiles[] = [
+            'label'   => $meta['label'],
+            'value'   => $cnt,
+            'href'    => '/procurement/list.php?status=' . urlencode($st),
+            'variant' => $pmoVariant($meta['color']),
+        ];
+    }
+
+    ui_card_open([
+        'title' => 'Workplace Procurement Requests',
+        'icon'  => 'bi-briefcase',
+        'tools' => '<a class="ui-action ui-action--sm" href="/procurement/list.php"><i class="bi bi-list-ul" aria-hidden="true"></i><span>View All Requests</span></a>',
+    ]);
+    if (!empty($procTiles)) {
+        ui_action_tiles($procTiles);
+    } else {
+        ui_empty('No procurement activity to summarise.', 'bi-briefcase');
+    }
+    ui_card_close();
+
+    ui_card_open([
+        'title' => 'Recent Requests (Last 20)',
+        'icon'  => 'bi-clock-history',
+        'tools' => ui_badge($procPendingTotal . ' Pending Action', 'warning'),
+        'flush' => true,
+    ]);
+
+    if (empty($recentProcurement)) {
+        echo '<div class="ui-card__pad">';
+        ui_empty('No procurement requests found.', 'bi-briefcase');
+        echo '</div>';
+    } else {
+        ui_table_toolbar('pmo-proc-table', ['placeholder' => 'Search reference, description or requestor…']);
+        ui_table_open('pmo-proc-table', ['perPage' => 10, 'label' => 'Recent workplace procurement requests']);
+        ?>
+        <thead>
+            <tr>
+                <th scope="col" data-sortable>Ref #</th>
+                <th scope="col" data-sortable>Description</th>
+                <th scope="col" data-sortable>Requested By</th>
+                <th scope="col" class="ui-num" data-sortable>Amount</th>
+                <th scope="col" data-sortable>Status</th>
+                <th scope="col" data-sortable>Date</th>
+                <th scope="col" data-ui-noexport></th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($recentProcurement as $pr):
+            $stMeta = $procStatusLabels[$pr['status']] ?? ['label' => $pr['status'], 'color' => 'secondary'];
+        ?>
+            <tr>
+                <th scope="row">
+                    <a class="ui-link" href="/procurement/view.php?id=<?= (int)$pr['request_id'] ?>">
+                        <?= ui_e($pr['request_number'] ?? '#' . $pr['request_id']) ?>
+                    </a>
+                </th>
+                <td class="ui-truncate" title="<?= ui_e($pr['description'] ?? '') ?>"><?= ui_e($pr['description'] ?? '—') ?></td>
+                <td><?= ui_e($pr['requestor_name'] ?? '—') ?></td>
+                <td class="ui-num ui-num--strong">
+                    <?php if ($pr['estimated_value']): ?>
+                        <?= ui_e($pr['currency'] ?? 'JMD') ?> <?= ui_e(number_format((float)$pr['estimated_value'], 2)) ?>
+                    <?php else: ?>
+                        —
+                    <?php endif; ?>
+                </td>
+                <td><?= ui_badge((string)$stMeta['label'], $pmoVariant($stMeta['color'])) ?></td>
+                <td class="ui-muted"><?= ui_e(date('Y-m-d', strtotime((string)$pr['created_at']))) ?></td>
+                <td class="ui-nowrap">
+                    <a class="ui-action ui-action--sm" href="/procurement/view.php?id=<?= (int)$pr['request_id'] ?>" aria-label="View request">
+                        <i class="bi bi-eye" aria-hidden="true"></i>
+                    </a>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+        <?php
+        ui_table_close('pmo-proc-table');
+    }
+    ui_card_close();
+    ?>
+<?php
+if ($invReady) {
+    ui_tabpanel_close();
+}
+?>
+
 </div>
 
 <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/footer.php'; ?>

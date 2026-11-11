@@ -1,8 +1,15 @@
 <?php
+/**
+ * Procurement Committee dashboard.
+ *
+ * Queries, permission guard and destination links are unchanged — only the
+ * presentation layer was migrated to the shared design system.
+ */
 $REQUIRE_PERMISSION = 'view_requests';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/page_guard.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/db.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/workflow.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/includes/ui.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/includes/header.php';
 
 /* RFQs at COMMITTEE_RECOMMENDED awaiting Procurement Committee action,
@@ -38,116 +45,194 @@ $raStmt->execute();
 $pendingApprovals = $raStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $totalPending = count($requests) + count($pendingApprovals);
+
+$evaluationCount = 0;
+$committeeValue  = 0.0;
+foreach ($requests as $r) {
+    if (($r['request_status'] ?? '') === 'EVALUATION_STAGE') {
+        $evaluationCount++;
+    }
+    $committeeValue += (float)($r['estimated_value'] ?? 0);
+}
 ?>
 
-<div style="max-width: 1400px; margin: 2rem auto; padding: 0 1rem;">
-  <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1rem;">
-    <div style="display: flex; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-      <span style="font-size: 1.5em; margin-right: 1rem;">👥</span>
-      <h4 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: #333;">Procurement Committee <span style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;">Dashboard</span></h4>
-    </div>
+<div class="ui-page">
 
-    <!-- KPI -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-      <div style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white; padding: 1rem; border-radius: 12px;">
-        <h6 style="margin: 0; font-weight: 600; opacity: 0.9;">Total Pending</h6>
-        <h3 style="margin: 0.5rem 0 0 0; font-size: 2rem; font-weight: 700;"><?= $totalPending ?></h3>
-      </div>
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem; border-radius: 12px;">
-        <h6 style="margin: 0; font-weight: 600; opacity: 0.9;">RFQs to Evaluate</h6>
-        <h3 style="margin: 0.5rem 0 0 0; font-size: 2rem; font-weight: 700;"><?= count($requests) ?></h3>
-      </div>
-    </div>
+<?php
+ui_page_header([
+    'title'    => 'Procurement Committee',
+    'subtitle' => sprintf(
+        'Welcome back, %s • %s • %s',
+        $_SESSION['full_name'] ?? 'User',
+        $_SESSION['role_name'] ?? 'Procurement Committee',
+        date('l, j F Y')
+    ),
+    'icon'        => 'bi-people',
+    'breadcrumbs' => [
+        ['label' => 'Home', 'href' => '/dashboard/index.php'],
+        ['label' => 'Procurement Committee'],
+    ],
+    'actions' => [
+        ['label' => 'RFQ / Evaluation', 'href' => '/rfq/list.php',         'icon' => 'bi-file-earmark-text', 'variant' => 'primary'],
+        ['label' => 'All Requests',     'href' => '/procurement/list.php', 'icon' => 'bi-list-ul'],
+        ['label' => 'Refresh',          'icon' => 'bi-arrow-clockwise', 'onclick' => 'location.reload()', 'title' => 'Refresh page'],
+    ],
+]);
 
-    <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1.5rem;">
-      <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-        <h6 style="margin: 0; font-size: 1rem; font-weight: 700; color: #333;">⏳ RFQs Awaiting Evaluation / Recommendation <span style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;"><?= count($requests) ?></span></h6>
-      </div>
+ui_kpi_grid([
+    [
+        'label'   => 'Total Pending',
+        'value'   => number_format($totalPending),
+        'meta'    => 'Items needing committee attention',
+        'icon'    => 'bi-inbox',
+        'variant' => $totalPending > 0 ? 'warning' : 'success',
+    ],
+    [
+        'label'   => 'RFQs to Evaluate',
+        'value'   => number_format(count($requests)),
+        'meta'    => $evaluationCount . ' at evaluation stage',
+        'icon'    => 'bi-clipboard-check',
+        'variant' => 'info',
+    ],
+    [
+        'label'   => 'Approval Chain Items',
+        'value'   => number_format(count($pendingApprovals)),
+        'meta'    => 'Pending committee sign-off',
+        'icon'    => 'bi-diagram-3',
+        'variant' => count($pendingApprovals) > 0 ? 'warning' : 'neutral',
+    ],
+    [
+        'label'   => 'Estimated Value',
+        'value'   => '$' . number_format($committeeValue, 0),
+        'meta'    => 'Across open RFQs',
+        'icon'    => 'bi-cash-stack',
+        'variant' => 'primary',
+    ],
+]);
 
-      <?php if (empty($requests)): ?>
-        <div style="text-align: center; color: #999; padding: 2rem 0;">
-          <span style="font-size: 1.5em;">✅</span><br>
-          <span style="display: block; margin-top: 0.5rem;">No RFQs pending evaluation</span>
-        </div>
-      <?php else: ?>
-        <div style="overflow-x: auto;">
-          <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-            <thead style="background: #f5f5f5;">
-              <tr>
-                <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">RFQ #</th>
-                <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Request #</th>
-                <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Branch</th>
-                <th style="padding: 0.75rem 1rem; text-align: right; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Est. Value</th>
-                <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Status</th>
-                <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($requests as $r): ?>
-                <tr style="border-bottom: 1px solid #f0f0f0; transition: background 0.3s ease;">
-                  <td style="padding: 0.75rem 1rem; font-weight: 600; color: #333;"><?= htmlspecialchars($r['rfq_number'] ?? '-') ?></td>
-                  <td style="padding: 0.75rem 1rem; color: #555;"><?= htmlspecialchars($r['request_number']) ?></td>
-                  <td style="padding: 0.75rem 1rem; color: #555;"><?= htmlspecialchars($r['branch_name'] ?? '-') ?></td>
-                  <td style="padding: 0.75rem 1rem; text-align: right; color: #555;">$<?= number_format($r['estimated_value'] ?? 0, 2) ?></td>
-                  <td style="padding: 0.75rem 1rem; text-align: center;">
-                    <span style="background: <?= $r['request_status'] === 'EVALUATION_STAGE' ? '#fff3cd' : '#cce5ff' ?>; color: <?= $r['request_status'] === 'EVALUATION_STAGE' ? '#856404' : '#004085' ?>; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600;"><?= htmlspecialchars($r['request_status']) ?></span>
-                  </td>
-                  <td style="padding: 0.75rem 1rem; text-align: center;">
-                    <a href="/rfq/view.php?id=<?= $r['rfq_id'] ?>"
-                       style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.75rem; font-weight: 600; display: inline-block; transition: transform 0.3s ease;">
-                      <?= $r['request_status'] === 'EVALUATION_STAGE' ? '📝 Evaluate' : '✅ Recommend' ?>
-                    </a>
-                  </td>
-                </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-      <?php endif; ?>
-    </div>
+ui_tabs('committee', [
+    ['id' => 'rfqs',      'label' => 'RFQs to Evaluate', 'icon' => 'bi-clipboard-check', 'count' => count($requests), 'active' => true],
+    ['id' => 'approvals', 'label' => 'Approval Chain',   'icon' => 'bi-diagram-3',       'count' => count($pendingApprovals)],
+    ['id' => 'insights',  'label' => 'Insights',         'icon' => 'bi-graph-up'],
+]);
+?>
 
-    <?php if (!empty($pendingApprovals)): ?>
-    <div style="background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 1.5rem;">
-      <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0;">
-        <h6 style="margin: 0; font-size: 1rem; font-weight: 700; color: #333;">📋 Pending Approval Chain Items <span style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;"><?= count($pendingApprovals) ?></span></h6>
-      </div>
-      <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-          <thead style="background: #f5f5f5;">
+<?php ui_tabpanel_open('committee', 'rfqs', true); ?>
+    <?php
+    ui_card_open([
+        'title' => 'RFQs Awaiting Evaluation / Recommendation',
+        'icon'  => 'bi-hourglass-split',
+        'tools' => ui_badge(number_format(count($requests)) . ' items', 'neutral'),
+        'flush' => true,
+    ]);
+
+    if (empty($requests)) {
+        echo '<div class="ui-card__pad">';
+        ui_empty('No RFQs pending evaluation', 'bi-check-circle');
+        echo '</div>';
+    } else {
+        ui_table_toolbar('committee-rfq-table', ['placeholder' => 'Search RFQ, request or branch…']);
+        ui_table_open('committee-rfq-table', [
+            'perPage' => 15,
+            'label'   => 'RFQs awaiting committee evaluation',
+        ]);
+        ?>
+        <thead>
             <tr>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Type</th>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Request #</th>
-              <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Branch</th>
-              <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0;">Action</th>
+                <th scope="col" data-sortable>RFQ #</th>
+                <th scope="col" data-sortable>Request #</th>
+                <th scope="col" data-sortable>Branch</th>
+                <th scope="col" class="ui-num" data-sortable>Est. Value</th>
+                <th scope="col" data-sortable>Status</th>
+                <th scope="col" data-ui-noexport>Action</th>
             </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($pendingApprovals as $pa): ?>
-              <tr style="border-bottom: 1px solid #f0f0f0;">
-                <td style="padding: 0.75rem 1rem;">
-                  <span style="background: #e2e3f1; color: #4a4a8a; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600;"><?= htmlspecialchars($pa['entity_type']) ?></span>
+        </thead>
+        <tbody>
+        <?php foreach ($requests as $r): ?>
+            <tr>
+                <th scope="row"><?= ui_e($r['rfq_number'] ?? '-') ?></th>
+                <td><?= ui_e($r['request_number']) ?></td>
+                <td><?= ui_e($r['branch_name'] ?? '-') ?></td>
+                <td class="ui-num">$<?= ui_e(number_format((float)($r['estimated_value'] ?? 0), 2)) ?></td>
+                <td><?= ui_status_badge((string)$r['request_status']) ?></td>
+                <td class="ui-nowrap">
+                    <a class="ui-action ui-action--primary ui-action--sm" href="/rfq/view.php?id=<?= (int)$r['rfq_id'] ?>">
+                        <i class="bi <?= $r['request_status'] === 'EVALUATION_STAGE' ? 'bi-pencil-square' : 'bi-check2-circle' ?>" aria-hidden="true"></i>
+                        <span><?= $r['request_status'] === 'EVALUATION_STAGE' ? 'Evaluate' : 'Recommend' ?></span>
+                    </a>
                 </td>
-                <td style="padding: 0.75rem 1rem; font-weight: 600; color: #333;"><?= htmlspecialchars($pa['request_number']) ?></td>
-                <td style="padding: 0.75rem 1rem; color: #555;"><?= htmlspecialchars($pa['branch_name'] ?? '-') ?></td>
-                <td style="padding: 0.75rem 1rem; text-align: center;">
-                  <a href="/procurement/view.php?id=<?= $pa['request_id'] ?>"
-                     style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.75rem; font-weight: 600; display: inline-block;">
-                    ✅ Approve
-                  </a>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <?php endif; ?>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+        <?php
+        ui_table_close('committee-rfq-table');
+    }
 
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem;">
-      <?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/pipeline.php"; ?>
-      <?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/top_vendors.php"; ?>
+    ui_card_close();
+    ?>
+<?php ui_tabpanel_close(); ?>
+
+<?php ui_tabpanel_open('committee', 'approvals'); ?>
+    <?php
+    ui_card_open([
+        'title' => 'Pending Approval Chain Items',
+        'icon'  => 'bi-diagram-3',
+        'tools' => ui_badge(number_format(count($pendingApprovals)) . ' items', 'neutral'),
+        'flush' => true,
+    ]);
+
+    if (empty($pendingApprovals)) {
+        echo '<div class="ui-card__pad">';
+        ui_empty('No approval chain items pending', 'bi-check-circle');
+        echo '</div>';
+    } else {
+        ui_table_toolbar('committee-approvals-table', ['placeholder' => 'Search request or branch…']);
+        ui_table_open('committee-approvals-table', [
+            'perPage' => 15,
+            'label'   => 'Pending committee approval chain items',
+        ]);
+        ?>
+        <thead>
+            <tr>
+                <th scope="col" data-sortable>Type</th>
+                <th scope="col" data-sortable>Request #</th>
+                <th scope="col" data-sortable>Branch</th>
+                <th scope="col" class="ui-num" data-sortable>Est. Value</th>
+                <th scope="col" data-sortable>Raised</th>
+                <th scope="col" data-ui-noexport>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($pendingApprovals as $pa): ?>
+            <tr>
+                <td><?= ui_badge((string)$pa['entity_type'], 'info') ?></td>
+                <th scope="row"><?= ui_e($pa['request_number']) ?></th>
+                <td><?= ui_e($pa['branch_name'] ?? '-') ?></td>
+                <td class="ui-num">$<?= ui_e(number_format((float)($pa['estimated_value'] ?? 0), 2)) ?></td>
+                <td class="ui-muted"><?= ui_e(date('d M Y', strtotime((string)$pa['created_at']))) ?></td>
+                <td class="ui-nowrap">
+                    <a class="ui-action ui-action--primary ui-action--sm" href="/procurement/view.php?id=<?= (int)$pa['request_id'] ?>">
+                        <i class="bi bi-check2-circle" aria-hidden="true"></i><span>Approve</span>
+                    </a>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+        <?php
+        ui_table_close('committee-approvals-table');
+    }
+
+    ui_card_close();
+    ?>
+<?php ui_tabpanel_close(); ?>
+
+<?php ui_tabpanel_open('committee', 'insights'); ?>
+    <div class="ui-grid ui-grid--2">
+        <div><?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/pipeline.php"; ?></div>
+        <div><?php include $_SERVER['DOCUMENT_ROOT']."/dashboard/widgets/top_vendors.php"; ?></div>
     </div>
-  </div>
+<?php ui_tabpanel_close(); ?>
+
 </div>
 
 <?php require_once $_SERVER['DOCUMENT_ROOT'].'/includes/footer.php'; ?>

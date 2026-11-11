@@ -26,6 +26,25 @@ if ($__prmsExportEnabled && empty($_SESSION['piams_export_csrf_token'])) {
   <link rel="stylesheet" href="/assets/css/tables.css?v=<?= time() ?>">
   <link rel="stylesheet" href="/assets/css/modern-ui.css?v=<?= time() ?>">
   <link rel="stylesheet" href="/assets/css/pipeline.css?v=<?= time() ?>">
+  <!-- Shared design system: loaded last so its `ui-*` component layer and
+       dark-mode token overrides win over the older stylesheets. -->
+  <link rel="stylesheet" href="/assets/css/design-system.css?v=<?= time() ?>">
+  <script>
+    // Apply the stored theme before first paint to avoid a flash of the
+    // wrong colour scheme. assets/js/ui-theme.js owns everything after this.
+    (function () {
+      try {
+        var pref = localStorage.getItem('piams.theme') || 'system';
+        var dark = pref === 'dark'
+          || (pref === 'system' && window.matchMedia
+              && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme-pref', pref);
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    })();
+  </script>
   <style>
     @media print {
       #sidebarMenu,
@@ -45,6 +64,8 @@ if ($__prmsExportEnabled && empty($_SESSION['piams_export_csrf_token'])) {
 </head>
 
 <body class="prms-body">
+
+<a class="ui-skip-link" href="#piams-main-content">Skip to main content</a>
 
 <!-- Top progress bar (page navigation indicator) -->
 <div id="pageLoaderBar"></div>
@@ -96,7 +117,7 @@ if ($__prmsExportEnabled && empty($_SESSION['piams_export_csrf_token'])) {
     </script>
 
     <!-- Main content -->
-    <main class="col-md-10 ms-sm-auto col-lg-10 px-md-4 pt-3">
+    <main id="piams-main-content" class="col-md-10 ms-sm-auto col-lg-10 px-md-4 pt-3">
 
 <!-- Global Top Bar -->
 <div class="global-topbar mb-3">
@@ -123,6 +144,11 @@ if ($__prmsExportEnabled && empty($_SESSION['piams_export_csrf_token'])) {
         <span class="topbar-user-role"><?= htmlspecialchars($_SESSION['role_name'] ?? '') ?></span>
       </div>
     </div>
+    <!-- Theme toggle (light / dark / system) -->
+    <button type="button" class="ui-theme-toggle" data-ui-theme-toggle
+            title="Toggle colour theme" aria-label="Toggle colour theme">
+      <i class="bi bi-circle-half" aria-hidden="true"></i>
+    </button>
     <!-- Notification Bell -->
     <div id="prms-notif-bell" style="position:relative; margin-right:0.25rem;">
       <button id="prms-notif-btn"
@@ -267,16 +293,25 @@ if ($__prmsExportEnabled && empty($_SESSION['piams_export_csrf_token'])) {
 </div>
 
 <?php if ($__prmsExportEnabled): ?>
-<div class="piams-export-toolbar d-flex justify-content-end gap-2 mb-3">
-  <button type="button" class="btn btn-sm btn-outline-danger" onclick="window.prmsExportPdf && window.prmsExportPdf()">
-    <i class="bi bi-file-earmark-pdf me-1"></i>Export PDF
-  </button>
-  <button type="button" class="btn btn-sm btn-outline-success" onclick="window.prmsExportExcel && window.prmsExportExcel()">
-    <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export Excel
-  </button>
-  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()">
-    <i class="bi bi-printer me-1"></i>Print
-  </button>
+<div class="piams-export-toolbar d-flex justify-content-end mb-3">
+  <div class="ui-menu" data-ui-menu>
+    <button type="button" class="ui-menu__btn" data-ui-menu-toggle aria-expanded="false" aria-haspopup="true">
+      <i class="bi bi-download" aria-hidden="true"></i><span>Export</span>
+      <i class="bi bi-chevron-down" aria-hidden="true" style="font-size:.65rem"></i>
+    </button>
+    <div class="ui-menu__panel" data-ui-menu-panel hidden>
+      <button type="button" class="ui-menu__item" onclick="window.prmsExportPdf && window.prmsExportPdf()">
+        <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>Export PDF
+      </button>
+      <button type="button" class="ui-menu__item" onclick="window.prmsExportExcel && window.prmsExportExcel()">
+        <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>Export Excel
+      </button>
+      <div class="ui-menu__sep"></div>
+      <button type="button" class="ui-menu__item" onclick="window.print()">
+        <i class="bi bi-printer" aria-hidden="true"></i>Print
+      </button>
+    </div>
+  </div>
 </div>
 <script>
 window.PIAMS_EXPORT_CSRF_TOKEN = <?= json_encode($_SESSION['piams_export_csrf_token'] ?? '') ?>;

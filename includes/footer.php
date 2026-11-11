@@ -257,5 +257,9 @@ function refreshTable() {
 <script src="/assets/js/ModalManager.js?v=<?= time() ?>"></script>
 <script src="/assets/js/app-nav.js?v=<?= time() ?>"></script>
 <script src="/assets/js/pipeline.js?v=<?= time() ?>"></script>
+<!-- Shared design-system behaviour: theming, tabs/lazy panels, data tables -->
+<script src="/assets/js/ui-theme.js?v=<?= time() ?>"></script>
+<script src="/assets/js/ui-tabs.js?v=<?= time() ?>"></script>
+<script src="/assets/js/ui-datatable.js?v=<?= time() ?>"></script>
 </body>
 </html>
