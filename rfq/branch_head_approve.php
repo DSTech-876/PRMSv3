@@ -36,12 +36,15 @@ if (!$rfq) {
 }
 
 $isHrmaBranch = (int)($rfq['branch_id'] ?? 0) === 5 || stripos((string)($rfq['branch_name'] ?? ''), 'HRM') !== false;
+$isDgcBranch = (int)($rfq['branch_id'] ?? 0) === 6 || stripos((string)($rfq['branch_name'] ?? ''), 'ANALYTICAL') !== false;
 $branchHeadStmt = $pdo->prepare(
     $isHrmaBranch
         ? "SELECT u.user_id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.name = 'Director HRM&A' AND u.is_active = 1"
-        : "SELECT u.user_id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.name IN ('HOD','Branch Head') AND u.branch_id = ? AND u.is_active = 1"
+        : ($isDgcBranch
+            ? "SELECT u.user_id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.name = 'Deputy Government Chemist' AND u.is_active = 1"
+            : "SELECT u.user_id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.name IN ('HOD','Branch Head') AND u.branch_id = ? AND u.is_active = 1")
 );
-$branchHeadStmt->execute($isHrmaBranch ? [] : [(int)$rfq['branch_id']]);
+$branchHeadStmt->execute($isHrmaBranch || $isDgcBranch ? [] : [(int)$rfq['branch_id']]);
 $allowedUserIds = array_map('intval', $branchHeadStmt->fetchAll(PDO::FETCH_COLUMN));
 $canOverride = hasPermission('override_branch_head_approval') || hasPermission('admin_override_approvals');
 if (!in_array((int)($_SESSION['user_id'] ?? 0), $allowedUserIds, true) && !$canOverride) {

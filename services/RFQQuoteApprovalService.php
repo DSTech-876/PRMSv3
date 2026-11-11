@@ -466,6 +466,7 @@ class RFQQuoteApprovalService
         $candidates = [];
         $normalizedBranch = strtoupper(trim($branchName));
         $isHrmaBranch = $branchId === 5 || str_contains($normalizedBranch, 'HRM');
+        $isDgcBranch = $branchId === 6 || str_contains($normalizedBranch, 'ANALYTICAL');
 
         if ($isHrmaBranch) {
             $stmt = $this->pdo->prepare(
@@ -479,7 +480,19 @@ class RFQQuoteApprovalService
             $candidates = array_merge($candidates, array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN)));
         }
 
-        if ($branchId > 0) {
+        if ($isDgcBranch) {
+            $stmt = $this->pdo->prepare(
+                "SELECT u.user_id
+                   FROM users u
+                   JOIN roles r ON r.id = u.role_id
+                  WHERE r.name = 'Deputy Government Chemist'
+                    AND u.is_active = 1"
+            );
+            $stmt->execute();
+            $candidates = array_merge($candidates, array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN)));
+        }
+
+        if ($branchId > 0 && !$isHrmaBranch && !$isDgcBranch) {
             $stmt = $this->pdo->prepare(
                 "SELECT u.user_id
                    FROM users u
