@@ -55,8 +55,12 @@ if (isset($REQUIRE_PERMISSION)) {
         // Table may not exist yet – silently fall back to hard-coded value.
     }
 
+    // Only evaluate alternates when no DB override is active.
+    // If a DB override exists (different from page constant), always require it.
+    $hasDBOverride = !empty($dbPerm) && $dbPerm !== '';
     $hasAlternate = false;
-    if (!empty($ALTERNATE_PERMISSIONS) && is_array($ALTERNATE_PERMISSIONS)) {
+    
+    if (!$hasDBOverride && !empty($ALTERNATE_PERMISSIONS) && is_array($ALTERNATE_PERMISSIONS)) {
         foreach ($ALTERNATE_PERMISSIONS as $alternatePermission) {
             if (has_permission($alternatePermission)) {
                 $hasAlternate = true;
