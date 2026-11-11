@@ -195,7 +195,7 @@ final class RFQQuoteApprovalServiceDGCAuthTest extends PHPUnit\Framework\TestCas
      */
     public function testDGCCanApproveBranch6WithAnalyticalKeyword(): void
     {
-        // Setup: Create a branch with "Analytical" in the name
+        // Setup: Create a branch with "Analytical" in the name but using non-6 branch ID
         $dgcUserId = $this->createDGCUser();
         $requestorUserId = $this->createRequestorUser();
         
@@ -203,9 +203,9 @@ final class RFQQuoteApprovalServiceDGCAuthTest extends PHPUnit\Framework\TestCas
             INSERT INTO branches (branch_id, branch_name)
             VALUES (?, ?)
         ");
-        $stmt->execute([6, 'Ministry of Analytics & Evaluation']);
+        $stmt->execute([99, 'Ministry of Analytical Services']);
 
-        $requestId = $this->createProcurementRequest($requestorUserId, 6);
+        $requestId = $this->createProcurementRequest($requestorUserId, 99);
         $rfqId = $this->createRFQ($requestId);
         $this->createRFQQuote($rfqId);
 
@@ -221,7 +221,7 @@ final class RFQQuoteApprovalServiceDGCAuthTest extends PHPUnit\Framework\TestCas
 
         $service = new RFQQuoteApprovalService($this->pdo, $dgcUserId, 'Deputy Government Chemist');
 
-        // Test: DGC should be able to approve despite branch name not exactly matching
+        // Test: DGC should be able to approve via keyword match despite branch ID not being 6
         $result = $service->decideBranchHeadApproval(
             $rfqId,
             'APPROVE',
