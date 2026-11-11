@@ -122,7 +122,7 @@ ui_kpi_grid([
         'label'   => 'Open Purchase Orders',
         'value'   => number_format((int)$openPOs),
         'icon'    => 'bi-file-earmark-text',
-        'href'    => '/purchase_orders/list.php?status=Open',
+        'href'    => '/po/list.php?status=Open',
         'variant' => 'purple',
     ],
     [
