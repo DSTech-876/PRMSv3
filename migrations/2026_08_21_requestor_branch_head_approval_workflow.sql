@@ -200,13 +200,13 @@ INSERT IGNORE INTO `role_permissions` (`role_id`, `permission_id`)
 SELECT r.id, p.id
   FROM `roles` r
   JOIN `permissions` p ON p.name = 'approve_branch_head_award'
- WHERE r.name IN ('HOD', 'Director HRM&A', 'Admin', 'SuperAdmin');
+ WHERE r.name IN ('HOD', 'Director HRM&A', 'Deputy Government Chemist', 'Admin', 'SuperAdmin');
 
 INSERT IGNORE INTO `role_permissions` (`role_id`, `permission_id`)
 SELECT r.id, p.id
   FROM `roles` r
   JOIN `permissions` p ON p.name = 'view_branch_head_approval_interface'
- WHERE r.name IN ('HOD', 'Director HRM&A', 'Admin', 'SuperAdmin');
+ WHERE r.name IN ('HOD', 'Director HRM&A', 'Deputy Government Chemist', 'Admin', 'SuperAdmin');
 
 INSERT IGNORE INTO `role_permissions` (`role_id`, `permission_id`)
 SELECT r.id, p.id
