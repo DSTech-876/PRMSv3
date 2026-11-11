@@ -69,13 +69,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("
             INSERT INTO commitments
             (request_id, commitment_number, commitment_date, commitment_total,
-             commitment_type, parent_commitment_id)
-            VALUES (?, ?, CURDATE(), ?, 'SUPPLEMENTARY', ?)
+             currency, commitment_type, parent_commitment_id)
+            VALUES (?, ?, CURDATE(), ?, ?, 'SUPPLEMENTARY', ?)
         ");
         $stmt->execute([
             $data['request_id'],
             $commitmentNumber,
             $data['variation_amount'],
+            $data['currency'],
             $data['parent_commitment_id']
         ]);
 

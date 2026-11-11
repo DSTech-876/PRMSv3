@@ -441,14 +441,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $stmt = $pdo->prepare("
                 INSERT INTO commitments
-                (request_id, commitment_number, commitment_date, commitment_total, gfms_commitment_number, document_path, status, approved_at, commitment_type, contract_id, po_required)
-                VALUES (?, ?, ?, ?, ?, ?, 'closed', NOW(), 'ORIGINAL', ?, ?)
+                (request_id, commitment_number, commitment_date, commitment_total, currency, gfms_commitment_number, document_path, status, approved_at, commitment_type, contract_id, po_required)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'closed', NOW(), 'ORIGINAL', ?, ?)
             ");
             $stmt->execute([
                 $request_id,
                 $commitmentNumber,
                 $commitmentDate,
                 (float)$commitmentTotal,
+                $requestCurrency,
                 !empty($gfmsNumber) ? $gfmsNumber : null,
                 $documentPath,
                 $contractIdForCommitment,

@@ -115,11 +115,15 @@ function retryFailedReminders(ReminderService $service, string $type, array $set
             continue;
         }
 
-        $item = [
+        $item = $service->loadRequestItem((int)($row['request_id'] ?? 0)) ?? [
             'request_id'       => $row['request_id'] ?? null,
             'request_number'   => $row['request_ref'] ?? null,
             'days_outstanding' => $row['days_outstanding'] ?? 0,
         ];
+        /* The original request record may not carry the age it was
+           outstanding for when the first attempt failed; keep that value. */
+        $item['days_outstanding'] = $row['days_outstanding'] ?? ($item['days_outstanding'] ?? 0);
+        $item['request_number']  = $item['request_number'] ?? ($row['request_ref'] ?? null);
         $isEscalation = ((int)($row['escalation_level'] ?? 0)) === 1;
         $message = $service->buildMessage($type, $item, $settings, $isEscalation);
         $notificationId = $service->createNotification($userId, $message, $item, $settings, $isEscalation);

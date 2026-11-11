@@ -64,7 +64,7 @@ if (!$commitment) {
     exit;
 }
 
-$currency = 'JMD'; // Commitments/POs are always stored in JMD
+$currency = normalizeCurrency($commitment['currency'] ?? 'JMD');
 $request_id = (int)$commitment['request_id'];
 
 $po_number = previewYearlyPONumber($pdo);
@@ -140,14 +140,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $stmt = $pdo->prepare("
             INSERT INTO purchase_orders
-            (commitment_id, po_number, po_date, po_total, po_file, document_path, uploaded_by, upload_date, status, gfms_po_number)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 'Open', ?)
+            (commitment_id, po_number, po_date, po_total, currency, po_file, document_path, uploaded_by, upload_date, status, gfms_po_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'Open', ?)
         ");
         $stmt->execute([
             $commitment_id,
             $po_number,
             $po_date,
             $po_total,
+            $currency,
             $uploadedDocumentPath,
             $uploadedDocumentPath,
             $_SESSION['user_id'],

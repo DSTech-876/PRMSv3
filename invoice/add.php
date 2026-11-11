@@ -32,11 +32,7 @@ if (!$po) {
     exit;
 }
 
-$currency = 'JMD';
-
-/* ================================
-   Check PO is Open before invoicing
-================================ */
+$currency = normalizeCurrency($po['currency'] ?? 'JMD');
 if ($po['status'] !== 'Open') {
     pop(
         "Purchase Order must be Open before invoicing.",
@@ -201,14 +197,15 @@ if ($stmt->fetchColumn()) {
  try {
     $stmt = $pdo->prepare("
         INSERT INTO invoices
-        (po_id, invoice_number, invoice_date, invoice_amount)
-        VALUES (?, ?, ?, ?)
+        (po_id, invoice_number, invoice_date, invoice_amount, currency)
+        VALUES (?, ?, ?, ?, ?)
     ");
     $stmt->execute([
         $po_id,
         $invoiceNumber,
         $invoiceDateRaw,
-        $invoiceAmount
+        $invoiceAmount,
+        $currency
     ]);
 
 } catch (PDOException $e) {

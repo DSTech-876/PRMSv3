@@ -67,6 +67,7 @@ $stmt = $pdo->prepare("
         po.po_date,
         po.po_type,
         po.approved_at,
+        po.currency,
         {$poFileSelect},
         {$documentPathSelect},
         c.commitment_number,
@@ -419,7 +420,7 @@ $statusIcon = match($po['status']) {
         <div class="card border-0 shadow-sm kpi-card kpi-gold h-100">
             <div class="card-body text-center py-3">
                 <small class="text-uppercase fw-bold d-block mb-1" style="letter-spacing:.05em">PO Total</small>
-                <h3 class="mb-0 fw-bold"><?= money((float)$po['po_total']) ?></h3>
+                <h3 class="mb-0 fw-bold"><?= money((float)$po['po_total'], $po['currency'] ?? null) ?></h3>
                 <small class="text-muted">Original value</small>
             </div>
         </div>
@@ -428,7 +429,7 @@ $statusIcon = match($po['status']) {
         <div class="card border-0 shadow-sm kpi-card kpi-green h-100">
             <div class="card-body text-center py-3">
                 <small class="text-uppercase fw-bold d-block mb-1" style="letter-spacing:.05em">Total Invoiced</small>
-                <h3 class="mb-0 fw-bold"><?= money($total_invoiced) ?></h3>
+                <h3 class="mb-0 fw-bold"><?= money($total_invoiced, $po['currency'] ?? null) ?></h3>
                 <small class="text-muted"><?= $utilizationPct ?>% utilized</small>
             </div>
         </div>
@@ -437,7 +438,7 @@ $statusIcon = match($po['status']) {
         <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #fff3e0, #ffe0b2); border-left: 6px solid #ff9800;">
             <div class="card-body text-center py-3">
                 <small class="text-uppercase fw-bold d-block mb-1" style="letter-spacing:.05em; color:#e65100;">Advance Payments</small>
-                <h3 class="mb-0 fw-bold" style="color:#bf360c;"><?= money($total_advance_payments) ?></h3>
+                <h3 class="mb-0 fw-bold" style="color:#bf360c;"><?= money($total_advance_payments, $po['currency'] ?? null) ?></h3>
                 <small class="text-muted"><?= count($advancePayments) ?> record<?= count($advancePayments) !== 1 ? 's' : '' ?></small>
             </div>
         </div>
@@ -446,7 +447,7 @@ $statusIcon = match($po['status']) {
         <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #e8eaf6, #c5cae9); border-left: 6px solid #3f51b5;">
             <div class="card-body text-center py-3">
                 <small class="text-uppercase fw-bold d-block mb-1" style="letter-spacing:.05em; color:#283593;">Remaining Balance</small>
-                <h3 class="mb-0 fw-bold" style="color:#1a237e;"><?= money($remaining_balance) ?></h3>
+                <h3 class="mb-0 fw-bold" style="color:#1a237e;"><?= money($remaining_balance, $po['currency'] ?? null) ?></h3>
                 <small class="text-muted"><?= (100 - $utilizationPct) ?>% available</small>
             </div>
         </div>
@@ -455,7 +456,7 @@ $statusIcon = match($po['status']) {
         <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #fce4ec, #f8bbd0); border-left: 6px solid #e91e63;">
             <div class="card-body text-center py-3">
                 <small class="text-uppercase fw-bold d-block mb-1" style="letter-spacing:.05em; color:#880e4f;">Approved Value</small>
-                <h3 class="mb-0 fw-bold" style="color:#880e4f;"><?= money($approvedTotal) ?></h3>
+                <h3 class="mb-0 fw-bold" style="color:#880e4f;"><?= money($approvedTotal, $po['currency'] ?? null) ?></h3>
                 <small class="text-muted">Incl. <?= count($variations) ?> variation<?= count($variations) !== 1 ? 's' : '' ?></small>
             </div>
         </div>
@@ -590,7 +591,7 @@ $statusIcon = match($po['status']) {
                     </div>
                     <div class="col-6">
                         <label class="form-label text-muted small fw-bold mb-0">Commitment Total</label>
-                        <p class="mb-0 fw-semibold"><?= money((float)$po['commitment_total']) ?></p>
+                        <p class="mb-0 fw-semibold"><?= money((float)$po['commitment_total'], $po['currency'] ?? null) ?></p>
                     </div>
                     <div class="col-6">
                         <label class="form-label text-muted small fw-bold mb-0">PO Type</label>
@@ -743,7 +744,7 @@ $statusIcon = match($po['status']) {
                         <td class="ps-3 fw-semibold">
                             <i class="bi bi-file-earmark-text me-1 text-muted"></i>Original PO
                         </td>
-                        <td class="text-end fw-semibold"><?= money((float)$po['po_total']) ?></td>
+                        <td class="text-end fw-semibold"><?= money((float)$po['po_total'], $po['currency'] ?? null) ?></td>
                         <td><span class="text-muted">&mdash;</span></td>
                         <td class="small text-muted"><?= date('d M Y', strtotime($po['po_date'])) ?></td>
                         <td class="text-center"><span class="badge bg-secondary">Base</span></td>
@@ -756,7 +757,7 @@ $statusIcon = match($po['status']) {
                                 <i class="bi bi-gear me-1 text-info"></i>Variation
                             </td>
                             <td class="text-end">
-                                <span class="fw-bold"><?= money((float)$adj['variation_amount']) ?></span>
+                                <span class="fw-bold"><?= money((float)$adj['variation_amount'], $adj['currency'] ?? ($po['currency'] ?? null)) ?></span>
                             </td>
                             <td class="small"><?= htmlspecialchars($adj['reason']) ?></td>
                             <td class="small text-muted">
@@ -779,7 +780,7 @@ $statusIcon = match($po['status']) {
                         <td class="ps-3 fw-bold">
                             <i class="bi bi-calculator me-1"></i>Total Approved Value
                         </td>
-                        <td class="text-end fw-bold text-white"><?= money($approvedTotal) ?></td>
+                        <td class="text-end fw-bold text-white"><?= money($approvedTotal, $po['currency'] ?? null) ?></td>
                         <td colspan="3"></td>
                     </tr>
                 </tbody>
@@ -825,7 +826,7 @@ $statusIcon = match($po['status']) {
                                 </a>
                             </td>
                             <td class="small text-muted"><?= date('d M Y', strtotime($inv['invoice_date'])) ?></td>
-                            <td class="text-end fw-semibold"><?= money((float)$inv['invoice_amount']) ?></td>
+                            <td class="text-end fw-semibold"><?= money((float)$inv['invoice_amount'], $inv['currency'] ?? ($po['currency'] ?? null)) ?></td>
                             <td class="text-center">
                                 <?php
                                     $invBadge = match ($inv['status']) {
@@ -845,7 +846,7 @@ $statusIcon = match($po['status']) {
                         <?php endforeach; ?>
                         <tr class="table-dark">
                             <td class="ps-3 fw-bold" colspan="2"><i class="bi bi-calculator me-1"></i>Total Invoiced</td>
-                            <td class="text-end fw-bold text-white"><?= money($total_invoiced) ?></td>
+                            <td class="text-end fw-bold text-white"><?= money($total_invoiced, $po['currency'] ?? null) ?></td>
                             <td colspan="2"></td>
                         </tr>
                     <?php endif; ?>
@@ -928,7 +929,7 @@ $statusIcon = match($po['status']) {
                             <td class="ps-3 small text-muted"><?= date('d M Y', strtotime($ap['payment_date'])) ?></td>
                             <td><span class="badge <?= $apTypeBadge ?>"><?= $apTypeLabel ?></span></td>
                             <td class="fw-semibold"><?= htmlspecialchars($ap['payment_reference']) ?></td>
-                            <td class="text-end fw-semibold"><?= money((float)$ap['payment_amount']) ?></td>
+                            <td class="text-end fw-semibold"><?= money((float)$ap['payment_amount'], $ap['currency'] ?? ($po['currency'] ?? null)) ?></td>
                             <td class="small"><?= htmlspecialchars($ap['payment_method'] ?? '—') ?></td>
                             <td class="text-center">
                                 <span class="badge <?= $apStatusBadge ?>"><?= htmlspecialchars($ap['status']) ?></span>
@@ -967,7 +968,7 @@ $statusIcon = match($po['status']) {
                         <?php endforeach; ?>
                         <tr class="table-dark">
                             <td class="ps-3 fw-bold" colspan="3"><i class="bi bi-calculator me-1"></i>Total Approved Advance Payments</td>
-                            <td class="text-end fw-bold text-white"><?= money($totalApproved) ?></td>
+                            <td class="text-end fw-bold text-white"><?= money($totalApproved, $po['currency'] ?? null) ?></td>
                             <td colspan="5"></td>
                         </tr>
                     <?php endif; ?>

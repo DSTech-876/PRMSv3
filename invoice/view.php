@@ -100,7 +100,7 @@ require_once $_SERVER['DOCUMENT_ROOT']."/includes/header.php";
         <div class="card border-0 shadow-sm kpi-card kpi-gold h-100">
             <div class="card-body text-center py-3">
                 <small class="text-uppercase fw-bold d-block mb-1" style="letter-spacing:.05em">Invoice Amount</small>
-                <h3 class="mb-0 fw-bold"><?= money((float)$i['invoice_amount']) ?></h3>
+                <h3 class="mb-0 fw-bold"><?= money((float)$i['invoice_amount'], $i['currency'] ?? null) ?></h3>
             </div>
         </div>
     </div>
@@ -108,7 +108,7 @@ require_once $_SERVER['DOCUMENT_ROOT']."/includes/header.php";
         <div class="card border-0 shadow-sm kpi-card kpi-green h-100">
             <div class="card-body text-center py-3">
                 <small class="text-uppercase fw-bold d-block mb-1" style="letter-spacing:.05em">Total Paid</small>
-                <h3 class="mb-0 fw-bold"><?= money($totalPaid) ?></h3>
+                <h3 class="mb-0 fw-bold"><?= money($totalPaid, $i['currency'] ?? null) ?></h3>
                 <small class="text-muted"><?= $paidPct ?>% paid</small>
             </div>
         </div>
@@ -117,7 +117,7 @@ require_once $_SERVER['DOCUMENT_ROOT']."/includes/header.php";
         <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #e8eaf6, #c5cae9); border-left: 6px solid #3f51b5;">
             <div class="card-body text-center py-3">
                 <small class="text-uppercase fw-bold d-block mb-1" style="letter-spacing:.05em; color:#283593;">Outstanding</small>
-                <h3 class="mb-0 fw-bold" style="color:#1a237e;"><?= money($balance) ?></h3>
+                <h3 class="mb-0 fw-bold" style="color:#1a237e;"><?= money($balance, $i['currency'] ?? null) ?></h3>
                 <small class="text-muted"><?= (100 - $paidPct) ?>% remaining</small>
             </div>
         </div>
@@ -186,11 +186,11 @@ require_once $_SERVER['DOCUMENT_ROOT']."/includes/header.php";
                     </div>
                     <div class="col-6">
                         <label class="form-label text-muted small fw-bold mb-0"><?= $i['po_id'] ? 'PO Total' : 'Contract' ?></label>
-                        <p class="mb-0 fw-semibold"><?= $i['po_id'] ? money((float)$i['po_total']) : htmlspecialchars($i['contract_title'] ?? '—') ?></p>
+                        <p class="mb-0 fw-semibold"><?= $i['po_id'] ? money((float)$i['po_total'], $i['currency'] ?? null) : htmlspecialchars($i['contract_title'] ?? '—') ?></p>
                     </div>
                     <div class="col-6">
                         <label class="form-label text-muted small fw-bold mb-0">Invoice Amount</label>
-                        <p class="mb-0 fs-5 fw-bold text-success"><?= money((float)$i['invoice_amount']) ?></p>
+                        <p class="mb-0 fs-5 fw-bold text-success"><?= money((float)$i['invoice_amount'], $i['currency'] ?? null) ?></p>
                     </div>
                     <div class="col-6">
                         <label class="form-label text-muted small fw-bold mb-0">Status</label>
@@ -217,7 +217,7 @@ require_once $_SERVER['DOCUMENT_ROOT']."/includes/header.php";
                     <i class="bi bi-cash-stack fs-4 text-warning"></i>
                     <div>
                         <strong class="d-block small">Next Step</strong>
-                        <span class="small"><?= money($balance) ?> outstanding — record payment</span>
+                        <span class="small"><?= money($balance, $i['currency'] ?? null) ?> outstanding — record payment</span>
                     </div>
                 </div>
                 <?php elseif ($balance <= 0): ?>
@@ -302,7 +302,7 @@ require_once $_SERVER['DOCUMENT_ROOT']."/includes/header.php";
                             <td>
                                 <span class="badge bg-info text-dark"><?= htmlspecialchars($p['payment_reference']) ?></span>
                             </td>
-                            <td class="text-end fw-semibold text-success"><?= money((float)$p['payment_amount']) ?></td>
+                            <td class="text-end fw-semibold text-success"><?= money((float)$p['payment_amount'], $p['currency'] ?? ($i['currency'] ?? null)) ?></td>
                             <td class="text-center pe-3">
                                 <a href="/payment/view.php?id=<?= (int)$p['payment_id'] ?>"
                                    class="btn btn-sm btn-outline-secondary" title="View payment & vouchers">
@@ -317,7 +317,7 @@ require_once $_SERVER['DOCUMENT_ROOT']."/includes/header.php";
                             <td class="ps-3 fw-bold" colspan="2">
                                 <i class="bi bi-calculator me-1"></i>Total Paid
                             </td>
-                            <td class="text-end fw-bold text-white"><?= money($totalPaid) ?></td>
+                            <td class="text-end fw-bold text-white"><?= money($totalPaid, $i['currency'] ?? null) ?></td>
                             <td></td>
                         </tr>
                     <?php endif; ?>

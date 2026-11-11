@@ -400,4 +400,63 @@ class CurrencyService
 
         return implode($separator, $parts);
     }
+
+    /**
+     * Conservative fallback exchange rates to JMD, used only when the
+     * system_config table has no configured rate for the currency yet.
+     * Administrators should configure accurate rates via system_config
+     * (e.g. `usd_to_jmd_rate`, `gbp_to_jmd_rate`, `eur_to_jmd_rate`,
+     * `cad_to_jmd_rate`).
+     */
+    private const FALLBACK_JMD_RATES = [
+        'USD' => 155.00,
+        'GBP' => 196.00,
+        'EUR' => 168.00,
+        'CAD' => 113.00,
+    ];
+
+    /**
+     * Configured JMD exchange rate for a non-JMD currency. Reads
+     * `{code}_to_jmd_rate` from system_config, falling back to a
+     * conservative built-in rate when no row has been configured.
+     */
+    public static function jmdRate(string $currency, PDO $pdo): float
+    {
+        $code = self::normalize($currency, $pdo);
+        if ($code === 'JMD') {
+            return 1.0;
+        }
+
+        require_once __DIR__ . '/SystemConfigService.php';
+        $default = self::FALLBACK_JMD_RATES[$code] ?? 1.0;
+        return SystemConfigService::getFloat($pdo, strtolower($code) . '_to_jmd_rate', $default);
+    }
+
+    /**
+     * Convert an amount in the given currency to its JMD equivalent, using
+     * the configured exchange rate. Supports every currency returned by
+     * self::codes(), not only USD, so threshold comparisons made in JMD are
+     * meaningful for GBP/EUR/CAD requests too.
+     *
+     * @param float|string $amount   The amount expressed in $currency
+     * @param string|null  $currency Source currency code (defaults to JMD)
+     * @param float|null   $rate     Optional pre-resolved exchange rate
+     *                                (e.g. the rate captured on the record);
+     *                                when omitted the configured system rate
+     *                                is used.
+     */
+    public static function toJmd($amount, ?string $currency, ?PDO $pdo = null, ?float $rate = null): float
+    {
+        $amount = (float)$amount;
+        $code = self::normalize($currency, $pdo);
+        if ($code === 'JMD') {
+            return $amount;
+        }
+
+        if ($rate === null || $rate <= 0) {
+            $rate = $pdo !== null ? self::jmdRate($code, $pdo) : (self::FALLBACK_JMD_RATES[$code] ?? 1.0);
+        }
+
+        return $amount * $rate;
+    }
 }

@@ -165,7 +165,7 @@ require_once $_SERVER['DOCUMENT_ROOT']."/includes/header.php";
                         <input type="number" step="0.01" name="total_amount"
                                value="<?= htmlspecialchars($po['po_total']) ?>"
                                class="form-control" required>
-                        <small class="text-muted">Current amount: <?= money((float)$po['po_total']) ?></small>
+                        <small class="text-muted">Current amount: <?= money((float)$po['po_total'], $po['currency'] ?? null) ?></small>
                     </div>
 
                     <?php if ($po['po_type'] === 'ADJUSTMENT'): ?>
@@ -207,19 +207,19 @@ require_once $_SERVER['DOCUMENT_ROOT']."/includes/header.php";
             <div class="card-body">
                 <div class="mb-3">
                     <small class="text-muted fw-bold">Commitment Total</small>
-                    <p class="h6 mb-0"><?= money((float)$po['commitment_total']) ?></p>
+                    <p class="h6 mb-0"><?= money((float)$po['commitment_total'], $po['currency'] ?? null) ?></p>
                 </div>
 
                 <div class="mb-3">
                     <small class="text-muted fw-bold">Current PO Amount</small>
-                    <p class="h6 mb-0"><?= money((float)$po['po_total']) ?></p>
+                    <p class="h6 mb-0"><?= money((float)$po['po_total'], $po['currency'] ?? null) ?></p>
                 </div>
 
                 <div class="mb-3">
                     <small class="text-muted fw-bold">Remaining Allocation</small>
                     <p class="h6 mb-0">
                         <?php $remaining = (float)$po['commitment_total'] - (float)$po['po_total']; ?>
-                        <?= money(max(0, $remaining)) ?>
+                        <?= money(max(0, $remaining), $po['currency'] ?? null) ?>
                     </p>
                 </div>
 

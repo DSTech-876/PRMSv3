@@ -122,15 +122,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $stmt = $pdo->prepare("
             INSERT INTO invoices
-            (po_id, commitment_id, contract_id, invoice_number, invoice_date, invoice_amount)
-            VALUES (NULL, ?, ?, ?, ?, ?)
+            (po_id, commitment_id, contract_id, invoice_number, invoice_date, invoice_amount, currency)
+            VALUES (NULL, ?, ?, ?, ?, ?, ?)
         ");
         $stmt->execute([
             $commitment_id,
             $contract_id,
             $invoiceNumber,
             $invoiceDateRaw,
-            $invoiceAmount
+            $invoiceAmount,
+            $currency
         ]);
 
         $invoice_id = $pdo->lastInsertId();

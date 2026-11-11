@@ -200,12 +200,13 @@ try {
             
             $disbInsert = $pdo->prepare("
                 INSERT INTO petty_cash_disbursements
-                (request_id, amount_authorized, disbursed_by, disbursement_date, disbursement_deadline, status)
-                VALUES (?, ?, ?, NOW(), ?, 'AUTHORIZED')
+                (request_id, amount_authorized, currency, disbursed_by, disbursement_date, disbursement_deadline, status)
+                VALUES (?, ?, ?, ?, NOW(), ?, 'AUTHORIZED')
             ");
             $disbInsert->execute([
                 $request_id,
                 $request['estimated_value'],
+                $request['currency'] ?? 'JMD',
                 $_SESSION['user_id'],
                 $deadline->format('Y-m-d H:i:s')
             ]);
