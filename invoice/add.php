@@ -3,6 +3,7 @@ $REQUIRE_PERMISSION = 'create_invoice';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/page_guard.php';
 require_once $_SERVER['DOCUMENT_ROOT']."/config/db.php";
 require_once $_SERVER['DOCUMENT_ROOT']."/config/helper.php";
+require_once $_SERVER['DOCUMENT_ROOT']."/services/ProcurementTaskService.php";
 
 /* ================================
    Validate po_id
@@ -260,6 +261,14 @@ if ($stmt->fetchColumn()) {
         // Notify about invoice received
         require_once $_SERVER['DOCUMENT_ROOT']."/config/notifications.php";
         notifyInvoiceReceived($invoiceRequestId, $invoiceNumber, $po['po_number'], $invoiceAmount);
+
+        ProcurementTaskService::recordCompletion(
+            $pdo,
+            (int)$invoiceRequestId,
+            ProcurementTaskService::TASK_INVOICE,
+            (int)($_SESSION['user_id'] ?? 0) ?: null,
+            'Invoice ' . $invoiceNumber . ' recorded'
+        );
     }
 
     /* Recalculate — auto-close PO if fully invoiced */

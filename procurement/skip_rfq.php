@@ -53,9 +53,11 @@ if (!in_array((string)($_SESSION['role_name'] ?? ''), ['Procurement Officer', 'A
     exit;
 }
 
-/* Must be in an RFQ-eligible, post-approval stage */
+/* Must be in an RFQ-eligible, post-approval stage.
+   PARALLEL_MODE: approval alone makes the request eligible — fund
+   verification is no longer a prerequisite. */
 $eligibleStatuses = ['HOD_APPROVED', 'DIRECTOR_APPROVED', 'GC_APPROVED', 'FUNDS_VERIFIED', 'RFQ_LETTER_AVAILABLE'];
-if (!in_array(strtoupper($request['status']), $eligibleStatuses, true)) {
+if (!workflowStatusGateAllows($request, $eligibleStatuses, 'SKIP_RFQ', $pdo)) {
     pop('This request is not at a stage where the RFQ can be skipped.', '/procurement/view.php?id=' . $id, POP_DEFAULT_DELAY_MS, 'error');
     exit;
 }

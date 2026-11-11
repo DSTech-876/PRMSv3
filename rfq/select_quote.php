@@ -7,6 +7,7 @@
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/page_guard.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/db.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/helper.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/config/workflow.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/services/RFQQuoteApprovalService.php';
 
 $stmt = $pdo->prepare("SELECT role_id FROM users WHERE user_id = ?");
@@ -32,7 +33,7 @@ if (!$quote_id || !$rfq_id) {
 $stmt = $pdo->prepare(
     "SELECT q.*, rv.rfq_vendor_id, v.vendor_name, r.request_id,
             r.requestor_spec_review_status, r.branch_head_approval_status,
-            pr.status AS request_status
+            pr.status AS request_status, pr.workflow_mode AS request_workflow_mode
      FROM rfq_quotes q
      JOIN rfq_vendors rv ON rv.rfq_vendor_id = q.rfq_vendor_id
      JOIN vendors v ON v.vendor_id = rv.vendor_id
@@ -48,7 +49,15 @@ if (!$quote) {
     exit;
 }
 
-if (($quote['request_status'] ?? '') !== 'QUOTE_REVIEW_PENDING') {
+// PARALLEL_MODE: quote selection is not pinned to the QUOTE_REVIEW_PENDING
+// stage; an approved request may have its quote selected whenever quotations
+// have been recorded.
+$selectQuoteGateRequest = [
+    'request_id'    => (int)$quote['request_id'],
+    'status'        => (string)($quote['request_status'] ?? ''),
+    'workflow_mode' => $quote['request_workflow_mode'] ?? null,
+];
+if (!workflowStatusGateAllows($selectQuoteGateRequest, ['QUOTE_REVIEW_PENDING'], 'SELECT_QUOTE', $pdo)) {
     pop('Quote selection is only available during the quote review stage.', '/rfq/view.php?id=' . $rfq_id, POP_DEFAULT_DELAY_MS, 'error');
     exit;
 }

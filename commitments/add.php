@@ -50,6 +50,7 @@ $stmt = $pdo->prepare("
         pr.request_id,
         pr.request_number,
         pr.status,
+        pr.workflow_mode,
         pr.estimated_value,
         pr.currency,
         pr.usd_rate,
@@ -93,6 +94,15 @@ $existingCommitment = $checkStmt->fetch(PDO::FETCH_ASSOC);
 $currentStep = 'verify_funds'; // Step 1: Finance verifies funds
 $requestStatus = strtoupper($request['status']);
 
+// PARALLEL_MODE: fund verification is optional/informational. Once the
+// request has cleared its approval chain, Accounts may create the commitment
+// directly without waiting for a FUNDS_VERIFIED transition, and Procurement
+// may upload the commitment form at any point.
+$parallelCommitmentUnlocked = parallelActionAllowed($request, 'CREATE_COMMITMENT', $pdo);
+if ($parallelCommitmentUnlocked) {
+    $currentStep = $isFinance ? 'create_commitment' : 'upload_form';
+}
+
 // "Proceed Without RFQ" path: the funds-verification stage is bypassed entirely.
 // The request goes straight from Branch Head/HOD approval (via AWARDED) to the
 // optional commitment form and then commitment creation — no FUNDS_VERIFIED
@@ -116,7 +126,7 @@ if ($existingCommitment && !empty($existingCommitment['document_path']) && $exis
 
 // Role access control per step
 if ($currentStep === 'verify_funds' && !$isFinance) {
-    if ($requestStatus === 'AWARDED') {
+    if ($requestStatus === 'AWARDED' || $parallelCommitmentUnlocked) {
         // For RFQ-path requests awarded pending funds verification, Procurement Officers
         // can upload the optional commitment form while Finance verifies funds.
         $currentStep = 'upload_form';
@@ -130,9 +140,12 @@ if ($currentStep === 'upload_form' && !$isProcurement && !$isFinance) {
     $currentStep = 'create_commitment';
 }
 
-// Verify request is in correct status for commitment creation
+// Verify request is in correct status for commitment creation.
+// In PARALLEL_MODE this allowlist is satisfied by approval alone, so a
+// commitment may be created before or after the PO and before or after any
+// invoice has been uploaded.
 $allowedStatuses = ['QUOTE_APPROVED', 'COMMITMENT_REVIEW_PENDING', 'AWARDED', 'FUNDS_VERIFIED', 'COMMITMENTS_PENDING', 'HOD_APPROVED', 'GC_APPROVED', 'DIRECTOR_APPROVED'];
-if (!in_array(strtoupper($request['status']), $allowedStatuses)) {
+if (!workflowStatusGateAllows($request, $allowedStatuses, 'CREATE_COMMITMENT', $pdo)) {
     pop(
         "This request is not ready for commitment creation. Current status: " . $request['status'],
         "/procurement/view.php?id=" . $request_id,
@@ -481,6 +494,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             logRequestTimeline($pdo, $request_id, 'COMMITMENT_APPROVED', $nextStepMsg);
             
             $pdo->commit();
+
+            ProcurementTaskService::recordCompletion(
+                $pdo,
+                $request_id,
+                ProcurementTaskService::TASK_COMMITMENT,
+                (int)($_SESSION['user_id'] ?? 0) ?: null,
+                'Commitment ' . $commitmentNumber . ' created'
+            );
             
             // Notify about commitment creation — email Procurement Officers
             require_once $_SERVER['DOCUMENT_ROOT']."/config/notifications.php";

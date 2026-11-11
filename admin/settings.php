@@ -6,6 +6,7 @@ require_once $_SERVER['DOCUMENT_ROOT'].'/config/helper.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/workflow.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/services/SignedRequestNoticeService.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/services/WorkflowConfigurationService.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/services/WorkflowModeService.php';
 
 if (!function_exists('settingsEnabledLabel')) {
     function settingsEnabledLabel(bool $enabled): string
@@ -192,14 +193,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
         }
 
+        // Procurement workflow mode (LEGACY_MODE | PARALLEL_MODE)
+        $previousWorkflowMode = WorkflowModeService::getMode($pdo);
+        $newWorkflowMode = $previousWorkflowMode;
+        if (isset($_POST['procurement_workflow_mode'])) {
+            $newWorkflowMode = WorkflowModeService::setMode($pdo, (string)$_POST['procurement_workflow_mode']);
+        }
+
         // Log audit
         logAudit(
             $pdo,
             'system_config',
             0,
             'UPDATE',
-            'System settings updated: enable_notifications=' . ($enable_notifications ? 'ON' : 'OFF')
-                . ', enable_rfq_auto_email=' . ($enable_rfq_auto_email ? 'ON' : 'OFF')
+            'System settings updated: enable_notifications=' . ($enable_notifications ? 'ON' : 'OFF')                . ', enable_rfq_auto_email=' . ($enable_rfq_auto_email ? 'ON' : 'OFF')
                 . ', signed_request_print_notice_enabled=' . ($signedRequestPrintNoticeEnabled ? 'ON' : 'OFF')
                 . ', confirmation_submit_to_procurement_enabled=' . ($confirmationSubmitToProcurementEnabled ? 'ON' : 'OFF')
                 . (isset($newThreshold) ? ', threshold=' . number_format($newThreshold, 2) : '')
@@ -210,8 +217,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 . (!empty($workflowConfigChanges) ? ', workflow_config_keys=' . implode('|', array_keys($workflowConfigChanges)) : '')
         );
 
-        if ($oldSubmitToProcurementSetting !== ((bool)$confirmationSubmitToProcurementEnabled)) {
+        if ($newWorkflowMode !== $previousWorkflowMode) {
             logAudit(
+                $pdo,
+                'system_config',
+                0,
+                'UPDATED_SYSTEM_SETTING',
+                'Setting=procurement_workflow_mode'
+                    . ', Old Value=' . $previousWorkflowMode
+                    . ', New Value=' . $newWorkflowMode
+            );
+        }
+
+        if ($oldSubmitToProcurementSetting !== ((bool)$confirmationSubmitToProcurementEnabled)) {            logAudit(
                 $pdo,
                 'system_config',
                 0,
@@ -238,6 +256,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Get current settings
+$currentWorkflowMode = WorkflowModeService::getMode($pdo);
+try {
+    $parallelPinnedCount = (int)$pdo->query(
+        "SELECT COUNT(*) FROM procurement_requests WHERE workflow_mode IN ('LEGACY_MODE', 'PARALLEL_MODE')"
+    )->fetchColumn();
+} catch (Throwable $e) {
+    $parallelPinnedCount = 0;
+}
+
 try {
     $stmt = $pdo->prepare("SELECT config_value FROM system_config WHERE config_key = ?");
     $stmt->execute(['enable_notifications']);
@@ -323,6 +350,54 @@ require_once $_SERVER['DOCUMENT_ROOT'].'/includes/header.php';
                 </div>
                 <div class="card-body">
                     <form method="POST" class="needs-validation" novalidate>
+
+                        <!-- ═══ Procurement Workflow Mode ═══ -->
+                        <h5 class="fw-bold mb-3"><i class="bi bi-diagram-3 me-2"></i> Procurement Workflow Mode</h5>
+                        <div class="mb-4">
+                            <div class="card border-0 bg-light">
+                                <div class="card-body">
+                                    <label class="form-label fw-bold" for="procurement_workflow_mode">Active Mode</label>
+                                    <select class="form-select" id="procurement_workflow_mode" name="procurement_workflow_mode">
+                                        <?php foreach (WorkflowModeService::availableModes() as $modeValue => $modeLabel): ?>
+                                            <option value="<?= htmlspecialchars($modeValue) ?>"
+                                                <?= $currentWorkflowMode === $modeValue ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($modeLabel) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <div class="mt-3 small text-muted">
+                                        <p class="mb-2">
+                                            <strong>Legacy Sequential Mode</strong> — the original workflow. Each stage must be
+                                            completed before the next department can act, and Fund Verification is required
+                                            before an RFQ can be raised.
+                                        </p>
+                                        <p class="mb-2">
+                                            <strong>Parallel Procurement Mode</strong> — once a request has all required Branch
+                                            Head approvals, Procurement and Accounts work independently. Fund Verification
+                                            becomes optional and informational; commitments, purchase orders, invoices and
+                                            payments may be recorded in any valid order. Approval status stays visible but no
+                                            longer blocks procurement actions.
+                                        </p>
+                                        <p class="mb-0">
+                                            Switching modes is reversible and non-destructive. Existing requests keep their
+                                            data and immediately display with the task-tracking view when Parallel
+                                            Procurement Mode is active.
+                                            <?php if ($parallelPinnedCount > 0): ?>
+                                                <br><span class="text-warning-emphasis">
+                                                    <?= (int)$parallelPinnedCount ?> request(s) are pinned to a specific mode and
+                                                    will ignore this setting.
+                                                </span>
+                                            <?php endif; ?>
+                                        </p>
+                                    </div>
+                                    <a href="/procurement/progress_dashboard.php" class="btn btn-outline-primary btn-sm mt-3">
+                                        <i class="bi bi-kanban me-1"></i>Open Procurement Progress Dashboard
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
 
                         <!-- ═══ Workflow Thresholds ═══ -->
                         <h5 class="fw-bold mb-3"><i class="bi bi-sliders me-2"></i> Workflow Thresholds</h5>

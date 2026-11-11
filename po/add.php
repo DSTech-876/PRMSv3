@@ -61,6 +61,7 @@ $stmt = $pdo->prepare("
         pr.request_id,
         pr.request_number,
         pr.status AS request_status,
+        pr.workflow_mode AS request_workflow_mode,
         pr.currency
    FROM commitments c
    JOIN procurement_requests pr ON c.request_id = pr.request_id
@@ -128,9 +129,19 @@ $currency = normalizeCurrency($commitment['currency'] ?? 'JMD');
 // ✅ UPDATED: Allow PO creation after commitment approval
 // For RFQ-based procurement: check commitment is linked to RFQ and has selected quote
 // For direct procurement: commitment just needs to exist
+//
+// PARALLEL_MODE: PO creation is not sequenced against the commitment stage.
+// A PO may be raised before or after the commitment is approved, provided the
+// request itself has cleared its approval chain.
+
+$poGateRequest = [
+    'request_id'    => (int)$commitment['request_id'],
+    'status'        => (string)$commitment['request_status'],
+    'workflow_mode' => $commitment['request_workflow_mode'] ?? null,
+];
 
 $allowedPOStatus = ['COMMITMENTS_PENDING', 'COMMITMENT_APPROVED', 'PO_PENDING', 'PO_APPROVED', 'INVOICE_RECEIVED', 'AWARDED', 'COMPLETED'];
-if (!in_array(strtoupper($commitment['request_status']), $allowedPOStatus)) {
+if (!workflowStatusGateAllows($poGateRequest, $allowedPOStatus, 'CREATE_PO', $pdo)) {
     // For backward compatibility, check if there's approval record for this commitment
     $approvalCheck = $pdo->prepare("
         SELECT COUNT(*) FROM request_approvals
@@ -283,6 +294,14 @@ $pdo->prepare("
 ")->execute([$request_id]);
 
 $pdo->commit();
+
+ProcurementTaskService::recordCompletion(
+    $pdo,
+    $request_id,
+    ProcurementTaskService::TASK_PO,
+    (int)($_SESSION['user_id'] ?? 0) ?: null,
+    'Purchase order ' . $po_number . ' created'
+);
 
 logAudit(
     $pdo,
