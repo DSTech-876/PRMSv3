@@ -250,15 +250,90 @@ a:hover { color: var(--dgc-green-dark); }
   justify-content: center;
 }
 
-/* Section labels */
-.sidebar-section-label {
-  font-size: 0.62rem;
+/* Collapsible section headings */
+.sidebar-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--r);
+  color: rgba(255,255,255,0.72);
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 1.8px;
-  color: rgba(255,255,255,0.35);
-  padding: 0.5rem 0.75rem 0.2rem;
+  letter-spacing: 1.4px;
   text-transform: uppercase;
-  margin-top: 0.35rem;
+  text-align: left;
+  padding: 0.55rem 0.7rem;
+  margin: 0.35rem 0 0.25rem;
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+
+.sidebar-group-toggle:hover,
+.sidebar-group-toggle:focus-visible {
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.14);
+  color: #fff;
+  outline: none;
+}
+
+.sidebar-group-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+  color: rgba(201,162,39,0.9);
+}
+
+.sidebar-group-title { flex: 1 1 auto; }
+
+.sidebar-group-caret {
+  font-size: 0.72rem;
+  line-height: 1;
+  opacity: 0.6;
+  transition: transform var(--t-fast), opacity var(--t-fast);
+}
+
+.sidebar-group-toggle[aria-expanded="true"] {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.18);
+  color: #fff;
+}
+
+.sidebar-group-toggle[aria-expanded="true"] .sidebar-group-caret {
+  transform: rotate(90deg);
+  opacity: 0.95;
+}
+
+/* Marks a collapsed group that contains the current page */
+.sidebar-group-toggle.has-active-child .sidebar-group-title::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 0.4rem;
+  border-radius: 50%;
+  background: rgba(201,162,39,0.95);
+  vertical-align: middle;
+}
+
+.sidebar-group-items {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--t);
+  padding-left: 0.35rem;
+  border-left: 1px solid rgba(255,255,255,0.08);
+  margin-left: 0.55rem;
+}
+
+.sidebar-group-items > * { min-height: 0; }
+
+.sidebar-group-items.is-open { grid-template-rows: 1fr; }
+
+/* Children are wrapped so collapsing can animate cleanly */
+.sidebar-group-body { overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-group-items { transition: none; }
 }
 
 /* Sub-section labels */

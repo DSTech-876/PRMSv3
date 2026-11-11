@@ -17,6 +17,8 @@ function isCollapsibleActive($urls, $currentPage) {
 }
 ?>
 
+<noscript><style>.sidebar-group-items{grid-template-rows:1fr !important;}</style></noscript>
+
 <div class="sidebar-inner pt-2 text-white">
 
     <!-- BRAND -->
@@ -77,7 +79,13 @@ function isCollapsibleActive($urls, $currentPage) {
         <!-- ===== REQUESTOR DASHBOARD ===== -->
         <?php if ($roleName === 'Requestor'): ?>
         <li class="nav-item mt-2">
-            <div class="sidebar-section-label">REQUESTOR</div>
+            <button class="sidebar-group-toggle" type="button" data-sidebar-group="sidebar-group-requestor" aria-expanded="false" aria-controls="sidebar-group-requestor">
+                <i class="bi bi-person-badge sidebar-group-icon" aria-hidden="true"></i>
+                <span class="sidebar-group-title">REQUESTOR</span>
+                <i class="bi bi-chevron-right sidebar-group-caret" aria-hidden="true"></i>
+            </button>
+            <div class="sidebar-group-items" id="sidebar-group-requestor" role="group" aria-label="REQUESTOR">
+            <div class="sidebar-group-body">
             <?php if (has_permission('submit_own_request')): ?>
             <a class="nav-link text-white sidebar-link <?= active('/procurement/add', $currentPage) ?>" href="/procurement/add.php">
                 <i class="bi bi-plus-circle me-2"></i>New Request
@@ -88,6 +96,8 @@ function isCollapsibleActive($urls, $currentPage) {
                 <i class="bi bi-clipboard-check me-2"></i>My Requests
             </a>
             <?php endif; ?>
+            </div>
+        </div>
         </li>
         <?php endif; ?>
 
@@ -95,7 +105,13 @@ function isCollapsibleActive($urls, $currentPage) {
         <!-- ===== HOD DASHBOARD ===== -->
         <?php if ($roleName === 'HOD'): ?>
         <li class="nav-item mt-2">
-            <div class="sidebar-section-label">HOD</div>
+            <button class="sidebar-group-toggle" type="button" data-sidebar-group="sidebar-group-hod" aria-expanded="false" aria-controls="sidebar-group-hod">
+                <i class="bi bi-diagram-2 sidebar-group-icon" aria-hidden="true"></i>
+                <span class="sidebar-group-title">HOD</span>
+                <i class="bi bi-chevron-right sidebar-group-caret" aria-hidden="true"></i>
+            </button>
+            <div class="sidebar-group-items" id="sidebar-group-hod" role="group" aria-label="HOD">
+            <div class="sidebar-group-body">
             <a class="nav-link text-white sidebar-link <?= active('/dashboard/hod', $currentPage) ?>" href="/dashboard/hod.php">
                 <i class="bi bi-speedometer2 me-2"></i>HOD Dashboard
             </a>
@@ -108,13 +124,21 @@ function isCollapsibleActive($urls, $currentPage) {
             <a class="nav-link text-white sidebar-link <?= active('/po', $currentPage) ?>" href="/po/list.php">
                 <i class="bi bi-receipt me-2"></i>Purchase Orders
             </a>
+            </div>
+        </div>
         </li>
         <?php endif; ?>
 
         <!-- ===== DIRECTOR PROCUREMENT DASHBOARD ===== -->
         <?php if ($roleName === 'Director Procurement'): ?>
         <li class="nav-item mt-2">
-            <div class="sidebar-section-label">DIRECTOR PROCUREMENT</div>
+            <button class="sidebar-group-toggle" type="button" data-sidebar-group="sidebar-group-director-procurement" aria-expanded="false" aria-controls="sidebar-group-director-procurement">
+                <i class="bi bi-person-vcard sidebar-group-icon" aria-hidden="true"></i>
+                <span class="sidebar-group-title">DIRECTOR PROCUREMENT</span>
+                <i class="bi bi-chevron-right sidebar-group-caret" aria-hidden="true"></i>
+            </button>
+            <div class="sidebar-group-items" id="sidebar-group-director-procurement" role="group" aria-label="DIRECTOR PROCUREMENT">
+            <div class="sidebar-group-body">
             <a class="nav-link text-white sidebar-link <?= active('/dashboard/director_procurement', $currentPage) ?>" href="/dashboard/director_procurement.php">
                 <i class="bi bi-speedometer2 me-2"></i>Director Dashboard
             </a>
@@ -127,13 +151,21 @@ function isCollapsibleActive($urls, $currentPage) {
             <a class="nav-link text-white sidebar-link <?= active('/po', $currentPage) ?>" href="/po/list.php">
                 <i class="bi bi-receipt me-2"></i>Purchase Orders
             </a>
+            </div>
+        </div>
         </li>
         <?php endif; ?>
 
         <!-- ===== PROPERTY MANAGEMENT OFFICER DASHBOARD ===== -->
         <?php if ($roleName === 'Property Management Officer'): ?>
         <li class="nav-item mt-2">
-            <div class="sidebar-section-label">PROPERTY MANAGEMENT</div>
+            <button class="sidebar-group-toggle" type="button" data-sidebar-group="sidebar-group-property-management" aria-expanded="false" aria-controls="sidebar-group-property-management">
+                <i class="bi bi-building-gear sidebar-group-icon" aria-hidden="true"></i>
+                <span class="sidebar-group-title">PROPERTY MANAGEMENT</span>
+                <i class="bi bi-chevron-right sidebar-group-caret" aria-hidden="true"></i>
+            </button>
+            <div class="sidebar-group-items" id="sidebar-group-property-management" role="group" aria-label="PROPERTY MANAGEMENT">
+            <div class="sidebar-group-body">
             <a class="nav-link text-white sidebar-link <?= active('/dashboard/property_management_officer', $currentPage) ?>" href="/dashboard/property_management_officer.php">
                 <i class="bi bi-building-gear me-2"></i>PMO Dashboard
             </a>
@@ -143,6 +175,8 @@ function isCollapsibleActive($urls, $currentPage) {
             <a class="nav-link text-white sidebar-link <?= active('/po/list', $currentPage) ?>" href="/po/list.php">
                 <i class="bi bi-receipt me-2"></i>Purchase Orders
             </a>
+            </div>
+        </div>
         </li>
         <?php endif; ?>
 
@@ -157,25 +191,36 @@ function isCollapsibleActive($urls, $currentPage) {
         <!-- ===== PROCUREMENT WORKFLOW ===== -->
         <?php if (has_permission('view_requests')): ?>
         <li class="nav-item mt-2">
-            <div class="sidebar-section-label">PROCUREMENT</div>
+            <button class="sidebar-group-toggle" type="button" data-sidebar-group="sidebar-group-procurement" aria-expanded="false" aria-controls="sidebar-group-procurement">
+                <i class="bi bi-cart-check sidebar-group-icon" aria-hidden="true"></i>
+                <span class="sidebar-group-title">PROCUREMENT</span>
+                <i class="bi bi-chevron-right sidebar-group-caret" aria-hidden="true"></i>
+            </button>
+            <div class="sidebar-group-items" id="sidebar-group-procurement" role="group" aria-label="PROCUREMENT">
+            <div class="sidebar-group-body">
             <a class="nav-link text-white sidebar-link <?= active('/procurement', $currentPage) ?>"
                href="/procurement/list.php">
                 <i class="bi bi-file-earmark-text me-2"></i>Requests
             </a>
-        </li>
-
-        <li class="nav-item">
             <a class="nav-link text-white sidebar-link <?= active('/rfq', $currentPage) ?>"
                href="/rfq/list.php">
                 <i class="bi bi-clipboard-data me-2"></i>RFQ / Evaluation
             </a>
+            </div>
+        </div>
         </li>
         <?php endif; ?>
 
         <!-- ===== REIMBURSEMENT & PETTY CASH ===== -->
         <?php if (has_permission('submit_own_request') || has_permission('view_requests') || has_permission('approve_reimbursement') || has_permission('approve_petty_cash')): ?>
         <li class="nav-item mt-2">
-            <div class="sidebar-section-label">SPECIAL REQUESTS</div>
+            <button class="sidebar-group-toggle" type="button" data-sidebar-group="sidebar-group-special-requests" aria-expanded="false" aria-controls="sidebar-group-special-requests">
+                <i class="bi bi-cash-coin sidebar-group-icon" aria-hidden="true"></i>
+                <span class="sidebar-group-title">SPECIAL REQUESTS</span>
+                <i class="bi bi-chevron-right sidebar-group-caret" aria-hidden="true"></i>
+            </button>
+            <div class="sidebar-group-items" id="sidebar-group-special-requests" role="group" aria-label="SPECIAL REQUESTS">
+            <div class="sidebar-group-body">
 
             <?php if (has_permission('submit_own_request')): ?>
             <a class="nav-link text-white sidebar-link <?= active('/reimbursement/add', $currentPage) ?>"
@@ -232,6 +277,8 @@ function isCollapsibleActive($urls, $currentPage) {
                 <?php endif; ?>
             </a>
             <?php endif; ?>
+            </div>
+        </div>
         </li>
         <?php endif; ?>
 
@@ -262,7 +309,13 @@ function isCollapsibleActive($urls, $currentPage) {
         <!-- ===== FINANCIAL SECTION ===== -->
         <?php if (has_permission('view_purchase_orders') || has_permission('view_invoices') || has_permission('view_po_adjustments')): ?>
         <li class="nav-item mt-2">
-            <div class="sidebar-section-label">FINANCIAL</div>
+            <button class="sidebar-group-toggle" type="button" data-sidebar-group="sidebar-group-financial" aria-expanded="false" aria-controls="sidebar-group-financial">
+                <i class="bi bi-bank sidebar-group-icon" aria-hidden="true"></i>
+                <span class="sidebar-group-title">FINANCIAL</span>
+                <i class="bi bi-chevron-right sidebar-group-caret" aria-hidden="true"></i>
+            </button>
+            <div class="sidebar-group-items" id="sidebar-group-financial" role="group" aria-label="FINANCIAL">
+            <div class="sidebar-group-body">
 
             <?php if (has_permission('view_purchase_orders')): ?>
             <a class="nav-link text-white sidebar-link <?= active('/po', $currentPage) ?>"
@@ -289,13 +342,21 @@ function isCollapsibleActive($urls, $currentPage) {
                 <i class="bi bi-sliders me-2"></i>PO Variations
             </a>
             <?php endif; ?>
+            </div>
+        </div>
         </li>
         <?php endif; ?>
 
         <!-- ===== REPORTS SECTION ===== -->
         <?php if (has_permission('view_financial_reports') || has_permission('view_management_dashboard')): ?>
         <li class="nav-item mt-2">
-            <div class="sidebar-section-label">REPORTS</div>
+            <button class="sidebar-group-toggle" type="button" data-sidebar-group="sidebar-group-reports" aria-expanded="false" aria-controls="sidebar-group-reports">
+                <i class="bi bi-bar-chart-line sidebar-group-icon" aria-hidden="true"></i>
+                <span class="sidebar-group-title">REPORTS</span>
+                <i class="bi bi-chevron-right sidebar-group-caret" aria-hidden="true"></i>
+            </button>
+            <div class="sidebar-group-items" id="sidebar-group-reports" role="group" aria-label="REPORTS">
+            <div class="sidebar-group-body">
 
             <?php if (has_permission('view_financial_reports')): ?>
             <div class="sidebar-subsection">Procurement</div>
@@ -353,13 +414,21 @@ function isCollapsibleActive($urls, $currentPage) {
                 <i class="bi bi-file-earmark-arrow-down me-2"></i>Export Reports
             </a>
             <?php endif; ?>
+            </div>
+        </div>
         </li>
         <?php endif; ?>
 
         <!-- ===== INVENTORY MANAGEMENT ===== -->
         <?php if (has_permission('view_inventory')): ?>
         <li class="nav-item mt-2">
-            <div class="sidebar-section-label">INVENTORY</div>
+            <button class="sidebar-group-toggle" type="button" data-sidebar-group="sidebar-group-inventory" aria-expanded="false" aria-controls="sidebar-group-inventory">
+                <i class="bi bi-boxes sidebar-group-icon" aria-hidden="true"></i>
+                <span class="sidebar-group-title">INVENTORY</span>
+                <i class="bi bi-chevron-right sidebar-group-caret" aria-hidden="true"></i>
+            </button>
+            <div class="sidebar-group-items" id="sidebar-group-inventory" role="group" aria-label="INVENTORY">
+            <div class="sidebar-group-body">
             <a class="nav-link text-white sidebar-link <?= active('/inventory/dashboard', $currentPage) ?>"
                href="/inventory/dashboard.php">
                 <i class="bi bi-speedometer me-2"></i>Inventory Dashboard
@@ -466,13 +535,21 @@ function isCollapsibleActive($urls, $currentPage) {
                 <i class="bi bi-tags me-2"></i>Asset Item Types
             </a>
             <?php endif; ?>
+            </div>
+        </div>
         </li>
         <?php endif; ?>
 
         <!-- ===== VENDORS SECTION ===== -->
         <?php if (has_permission('view_vendors') || has_permission('manage_vendors') || has_permission('view_contracts')): ?>
         <li class="nav-item mt-2">
-            <div class="sidebar-section-label">VENDORS & CONTRACTS</div>
+            <button class="sidebar-group-toggle" type="button" data-sidebar-group="sidebar-group-vendors-contracts" aria-expanded="false" aria-controls="sidebar-group-vendors-contracts">
+                <i class="bi bi-shop sidebar-group-icon" aria-hidden="true"></i>
+                <span class="sidebar-group-title">VENDORS & CONTRACTS</span>
+                <i class="bi bi-chevron-right sidebar-group-caret" aria-hidden="true"></i>
+            </button>
+            <div class="sidebar-group-items" id="sidebar-group-vendors-contracts" role="group" aria-label="VENDORS &amp; CONTRACTS">
+            <div class="sidebar-group-body">
             <a class="nav-link text-white sidebar-link <?= active('/vendors', $currentPage) ?>"
                href="/vendors/list.php">
                 <i class="bi bi-building me-2"></i>Vendors
@@ -483,13 +560,21 @@ function isCollapsibleActive($urls, $currentPage) {
                 <i class="bi bi-file-earmark-text me-2"></i>Service Contracts
             </a>
             <?php endif; ?>
+            </div>
+        </div>
         </li>
         <?php endif; ?>
 
         <!-- ===== SUPERADMIN: ALL DASHBOARDS ACCESS ===== -->
         <?php if ($roleName === 'SuperAdmin'): ?>
         <li class="nav-item mt-2">
-            <div class="sidebar-section-label">ALL DASHBOARDS</div>
+            <button class="sidebar-group-toggle" type="button" data-sidebar-group="sidebar-group-all-dashboards" aria-expanded="false" aria-controls="sidebar-group-all-dashboards">
+                <i class="bi bi-grid-1x2 sidebar-group-icon" aria-hidden="true"></i>
+                <span class="sidebar-group-title">ALL DASHBOARDS</span>
+                <i class="bi bi-chevron-right sidebar-group-caret" aria-hidden="true"></i>
+            </button>
+            <div class="sidebar-group-items" id="sidebar-group-all-dashboards" role="group" aria-label="ALL DASHBOARDS">
+            <div class="sidebar-group-body">
             <a class="nav-link text-white sidebar-link <?= active('/dashboard/admin', $currentPage) ?>" href="/dashboard/admin.php">
                 <i class="bi bi-speedometer2 me-2"></i>Admin
             </a>
@@ -544,13 +629,21 @@ function isCollapsibleActive($urls, $currentPage) {
             <a class="nav-link text-white sidebar-link <?= active('/dashboard/metrics', $currentPage) ?>" href="/dashboard/metrics.php">
                 <i class="bi bi-speedometer me-2"></i>Metrics
             </a>
+            </div>
+        </div>
         </li>
         <?php endif; ?>
 
         <!-- ===== ADMINISTRATION SECTION ===== -->
         <?php if (has_permission('manage_users') || has_permission('manage_roles') || has_permission('view_audit_logs') || has_permission('manage_email_notifications')): ?>
         <li class="nav-item mt-2">
-            <div class="sidebar-section-label">ADMIN</div>
+            <button class="sidebar-group-toggle" type="button" data-sidebar-group="sidebar-group-admin" aria-expanded="false" aria-controls="sidebar-group-admin">
+                <i class="bi bi-gear sidebar-group-icon" aria-hidden="true"></i>
+                <span class="sidebar-group-title">ADMIN</span>
+                <i class="bi bi-chevron-right sidebar-group-caret" aria-hidden="true"></i>
+            </button>
+            <div class="sidebar-group-items" id="sidebar-group-admin" role="group" aria-label="ADMIN">
+            <div class="sidebar-group-body">
 
             <?php if (has_permission('manage_users')): ?>
             <a class="nav-link text-white sidebar-link <?= active('/users', $currentPage) ?>"
@@ -608,6 +701,8 @@ function isCollapsibleActive($urls, $currentPage) {
                 <i class="bi bi-trash-fill me-2"></i>Deleted Documents
             </a>
             <?php endif; ?>
+            </div>
+        </div>
         </li>
         <?php endif; ?>
 

@@ -75,6 +75,8 @@ if ($__prmsExportEnabled && empty($_SESSION['piams_export_csrf_token'])) {
          class="col-md-2 col-lg-2 d-md-block bg-dark sidebar collapse">
       <?php require_once $_SERVER['DOCUMENT_ROOT'].'/includes/sidebar.php'; ?>
     </nav>
+    <!-- Loaded here (not in the footer) so collapsed nav groups are resolved before first paint -->
+    <script src="/assets/js/sidebar-nav.js?v=<?= time() ?>"></script>
     <script>
       // Restore the sidebar's scroll position immediately (before first paint)
       // so it stays where the user left it after selecting a link/tab.
