@@ -33,7 +33,8 @@ if (!$quote_id || !$rfq_id) {
 $stmt = $pdo->prepare(
     "SELECT q.*, rv.rfq_vendor_id, v.vendor_name, r.request_id,
             r.requestor_spec_review_status, r.branch_head_approval_status,
-            pr.status AS request_status, pr.workflow_mode AS request_workflow_mode
+           r.status AS rfq_status,
+           pr.status AS request_status, pr.workflow_mode AS request_workflow_mode
      FROM rfq_quotes q
      JOIN rfq_vendors rv ON rv.rfq_vendor_id = q.rfq_vendor_id
      JOIN vendors v ON v.vendor_id = rv.vendor_id
@@ -46,6 +47,12 @@ $quote = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$quote) {
     pop('Quote not found', '/rfq/list.php', POP_DEFAULT_DELAY_MS, 'error');
+    exit;
+}
+
+// Check that the RFQ is not already awarded.
+if (strtoupper((string)($quote['rfq_status'] ?? '')) === 'AWARDED') {
+    pop('This RFQ has already been awarded and cannot be modified.', '/rfq/view.php?id=' . $rfq_id, POP_DEFAULT_DELAY_MS, 'error');
     exit;
 }
 

@@ -828,7 +828,9 @@ if ($viewIsParallelMode) {
         </div>
     </div>
 </div>
-<?php else: ?>
+<?php endif; ?>
+
+<?php if ($current === 'DECLINED'): ?>
 <div class="alert alert-danger border-0 shadow-sm d-flex align-items-center gap-3 mb-4">
     <i class="bi bi-x-octagon fs-2"></i>
     <div>
