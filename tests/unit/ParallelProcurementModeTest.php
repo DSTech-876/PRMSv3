@@ -166,6 +166,19 @@ final class ParallelProcurementModeTest extends TestCase
         $this->assertTrue(workflowStatusGateAllows($this->request('HOD_APPROVED'), $poStatuses, 'CREATE_PO', $this->pdo));
     }
 
+    public function testParallelModeAllowlistedStatusChecksApprovalWithoutTypeError(): void
+    {
+        $this->setGlobalMode(WorkflowModeService::MODE_PARALLEL);
+
+        $commitmentStatuses = ['QUOTE_APPROVED', 'AWARDED', 'HOD_APPROVED', 'SUBMITTED'];
+
+        $this->assertTrue(workflowStatusGateAllows($this->request('HOD_APPROVED'), $commitmentStatuses, 'CREATE_COMMITMENT', $this->pdo));
+        $this->assertFalse(
+            workflowStatusGateAllows($this->request('SUBMITTED'), $commitmentStatuses, 'CREATE_COMMITMENT', $this->pdo),
+            'An allowlisted status must still require a cleared approval chain in PARALLEL_MODE'
+        );
+    }
+
     public function testParallelModeStillBlocksUnapprovedRequests(): void
     {
         $this->setGlobalMode(WorkflowModeService::MODE_PARALLEL);
