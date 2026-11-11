@@ -236,8 +236,8 @@ if ($existingPo) {
 
         $stmt = $pdo->prepare("
             INSERT INTO purchase_orders
-            (commitment_id, po_number, po_date, po_total, status, gfms_po_number, document_path)
-            VALUES (?, ?, ?, ?, 'Open', ?, ?)
+            (commitment_id, po_number, po_date, po_total, currency, status, gfms_po_number, document_path)
+            VALUES (?, ?, ?, ?, ?, 'Open', ?, ?)
         ");
 
         $stmt->execute([
@@ -245,6 +245,7 @@ if ($existingPo) {
             $po_number,
             $po_date,
             $po_total,
+            $currency,
             !empty($gfmsPoNumber) ? $gfmsPoNumber : null,
             $documentPath
         ]);

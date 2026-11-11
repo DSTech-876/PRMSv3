@@ -71,14 +71,15 @@ if ($amount > $balance) {
     try {
     $stmt = $pdo->prepare("
       INSERT INTO payments
-      (invoice_id, payment_date, payment_reference, payment_amount, created_by)
-      VALUES (?, ?, ?, ?, ?)
+      (invoice_id, payment_date, payment_reference, payment_amount, currency, created_by)
+      VALUES (?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([
         $invoice_id,
         $_POST['payment_date'],
         $_POST['payment_reference'],
         $amount,
+        $i['currency'],
         $_SESSION['user_id']
     ]);
     

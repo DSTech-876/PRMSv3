@@ -58,7 +58,7 @@ if (!$po) {
     exit;
 }
 
-$currency = 'JMD'; // PO amounts are always stored in JMD
+$currency = normalizeCurrency($po['currency'] ?? 'JMD');
 
 if (in_array($po['status'], ['Cancelled'], true)) {
     modalPop('Error', 'Variations cannot be created for a cancelled PO.', '/po/list.php', 'error');
@@ -133,12 +133,13 @@ if ($po['po_type'] !== 'ORIGINAL') {
     try {
     $stmt = $pdo->prepare("
         INSERT INTO po_variations
-        (po_id, variation_amount, reason, requested_by, status, requested_at)
-        VALUES (?, ?, ?, ?, 'PENDING', NOW())
+        (po_id, variation_amount, currency, reason, requested_by, status, requested_at)
+        VALUES (?, ?, ?, ?, ?, 'PENDING', NOW())
     ");
     $stmt->execute([
         $po_id,
         $amount,
+        $currency,
         $reason,
         $_SESSION['user_id']
     ]);

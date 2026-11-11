@@ -195,17 +195,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $ins = $pdo->prepare("
             INSERT INTO po_advance_payments
-                (po_id, payment_type, payment_amount, payment_date, payment_reference,
+                (po_id, payment_type, payment_amount, currency, payment_date, payment_reference,
                  supplier_name, payment_method, notes,
                  supporting_document_path, supporting_document_original_name,
                  supporting_document_file_type, supporting_document_file_size,
                  created_by, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_APPROVAL')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_APPROVAL')
         ");
         $ins->execute([
             $po_id,
             $paymentType,
             $paymentAmount,
+            $currency,
             $paymentDate,
             $paymentReference,
             $supplierName ?: null,

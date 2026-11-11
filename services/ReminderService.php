@@ -188,27 +188,35 @@ class ReminderService
                 ':attempts'    => max(1, (int)($values['max_attempts'] ?? 3)),
             ];
 
-            /* Portable upsert: update first, insert only when no row matched.
+            /* Portable upsert: check existence first, then update or insert.
                Avoids MySQL-only ON DUPLICATE KEY UPDATE so the same code path
-               works under SQLite. */
-            $update = $this->pdo->prepare(
-                'UPDATE reminder_settings
-                    SET label                 = :label,
-                        is_enabled            = :enabled,
-                        initial_delay_days    = :initial,
-                        repeat_interval_days  = :repeat,
-                        escalation_enabled    = :esc_enabled,
-                        escalation_after_days = :esc_days,
-                        escalation_role       = :esc_role,
-                        priority              = :priority,
-                        max_attempts          = :attempts
-                  WHERE reminder_type = :type'
+               works under SQLite, and avoids relying on rowCount() (which can
+               be 0 for a matched-but-unchanged UPDATE) to decide whether to
+               insert. */
+            $exists = $this->pdo->prepare(
+                'SELECT 1 FROM reminder_settings WHERE reminder_type = :type'
             );
-            $updateParams = $params;
-            unset($updateParams[':descr']);
-            $update->execute($updateParams);
+            $exists->execute([':type' => $type]);
+            $rowExists = (bool)$exists->fetchColumn();
 
-            if ($update->rowCount() === 0) {
+            if ($rowExists) {
+                $update = $this->pdo->prepare(
+                    'UPDATE reminder_settings
+                        SET label                 = :label,
+                            is_enabled            = :enabled,
+                            initial_delay_days    = :initial,
+                            repeat_interval_days  = :repeat,
+                            escalation_enabled    = :esc_enabled,
+                            escalation_after_days = :esc_days,
+                            escalation_role       = :esc_role,
+                            priority              = :priority,
+                            max_attempts          = :attempts
+                      WHERE reminder_type = :type'
+                );
+                $updateParams = $params;
+                unset($updateParams[':descr']);
+                $update->execute($updateParams);
+            } else {
                 $insert = $this->pdo->prepare(
                     'INSERT INTO reminder_settings
                         (reminder_type, label, description, is_enabled, initial_delay_days,
@@ -279,8 +287,7 @@ class ReminderService
      */
     public function detectionSqlFor(string $type): ?string
     {
-        $sql = $this->outstandingSql($type);
-        return $sql === null ? null : $this->applyDayDiff($sql);
+        return $this->outstandingSql($type);
     }
 
     /**
@@ -322,7 +329,7 @@ class ReminderService
             case self::TYPE_RFQ:
                 // Approved, requires an RFQ, but none has been raised.
                 return $base . "
-                        julianday_placeholder AS days_outstanding
+                        " . $this->dayDiffExpr('r.approved_at') . " AS days_outstanding
                    FROM procurement_requests r
                    LEFT JOIN branches b ON b.branch_id = r.branch_id
                   WHERE r.approved_at IS NOT NULL
@@ -332,7 +339,7 @@ class ReminderService
 
             case self::TYPE_COMMITMENT:
                 return $base . "
-                        julianday_placeholder AS days_outstanding
+                        " . $this->dayDiffExpr('r.approved_at') . " AS days_outstanding
                    FROM procurement_requests r
                    LEFT JOIN branches b ON b.branch_id = r.branch_id
                   WHERE r.approved_at IS NOT NULL
@@ -340,8 +347,12 @@ class ReminderService
                     AND NOT EXISTS (SELECT 1 FROM commitments c WHERE c.request_id = r.request_id)";
 
             case self::TYPE_PO:
+                // Commitment already exists; age the reminder from when the
+                // commitment was created, not from the original approval.
                 return $base . "
-                        julianday_placeholder AS days_outstanding
+                        " . $this->dayDiffExpr(
+                            "(SELECT MAX(c.commitment_date) FROM commitments c WHERE c.request_id = r.request_id)"
+                        ) . " AS days_outstanding
                    FROM procurement_requests r
                    LEFT JOIN branches b ON b.branch_id = r.branch_id
                   WHERE r.approved_at IS NOT NULL
@@ -353,8 +364,13 @@ class ReminderService
                          WHERE c2.request_id = r.request_id)";
 
             case self::TYPE_INVOICE:
+                // PO already exists; age the reminder from the PO date.
                 return $base . "
-                        julianday_placeholder AS days_outstanding
+                        " . $this->dayDiffExpr(
+                            "(SELECT MAX(p.po_date) FROM purchase_orders p
+                               JOIN commitments c ON c.commitment_id = p.commitment_id
+                              WHERE c.request_id = r.request_id)"
+                        ) . " AS days_outstanding
                    FROM procurement_requests r
                    LEFT JOIN branches b ON b.branch_id = r.branch_id
                   WHERE r.approved_at IS NOT NULL
@@ -370,8 +386,16 @@ class ReminderService
                          WHERE c2.request_id = r.request_id)";
 
             case self::TYPE_PAYMENT:
+                // Unpaid invoice already exists; age the reminder from the
+                // invoice date.
                 return $base . "
-                        julianday_placeholder AS days_outstanding
+                        " . $this->dayDiffExpr(
+                            "(SELECT MAX(i.invoice_date) FROM invoices i
+                               JOIN purchase_orders p ON p.po_id = i.po_id
+                               JOIN commitments c ON c.commitment_id = p.commitment_id
+                              WHERE c.request_id = r.request_id
+                                AND LOWER(i.status) <> 'paid')"
+                        ) . " AS days_outstanding
                    FROM procurement_requests r
                    LEFT JOIN branches b ON b.branch_id = r.branch_id
                   WHERE r.approved_at IS NOT NULL
@@ -384,8 +408,16 @@ class ReminderService
                            AND LOWER(i.status) <> 'paid')";
 
             case self::TYPE_INVENTORY:
+                // Invoice already paid; age the reminder from the payment
+                // date.
                 return $base . "
-                        julianday_placeholder AS days_outstanding
+                        " . $this->dayDiffExpr(
+                            "(SELECT MAX(pay.payment_date) FROM payments pay
+                               JOIN invoices i ON i.invoice_id = pay.invoice_id
+                               JOIN purchase_orders p ON p.po_id = i.po_id
+                               JOIN commitments c ON c.commitment_id = p.commitment_id
+                              WHERE c.request_id = r.request_id)"
+                        ) . " AS days_outstanding
                    FROM procurement_requests r
                    LEFT JOIN branches b ON b.branch_id = r.branch_id
                   WHERE r.approved_at IS NOT NULL
@@ -409,10 +441,11 @@ class ReminderService
     }
 
     /**
-     * Replace the day-difference placeholder with the dialect-appropriate
-     * expression. MySQL is the production driver; SQLite is used by tests.
+     * Dialect-appropriate day-difference expression against now() for the
+     * given date-valued SQL expression. MySQL is the production driver;
+     * SQLite is used by tests.
      */
-    private function applyDayDiff(string $sql): string
+    private function dayDiffExpr(string $dateExpr): string
     {
         $driver = '';
         try {
@@ -421,11 +454,9 @@ class ReminderService
             $driver = '';
         }
 
-        $expr = $driver === 'sqlite'
-            ? "CAST(julianday('now') - julianday(r.approved_at) AS INTEGER)"
-            : 'CAST(DATEDIFF(NOW(), r.approved_at) AS SIGNED)';
-
-        return str_replace('julianday_placeholder', $expr, $sql);
+        return $driver === 'sqlite'
+            ? "CAST(julianday('now') - julianday({$dateExpr}) AS INTEGER)"
+            : "CAST(DATEDIFF(NOW(), {$dateExpr}) AS SIGNED)";
     }
 
     // ------------------------------------------------------------------
@@ -571,6 +602,32 @@ class ReminderService
         } catch (Throwable $e) {
             error_log('ReminderService::logDispatch error: ' . $e->getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Reload the full reminder-message context for a request, so retries can
+     * rebuild an accurate message instead of one with only id/ref/age.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function loadRequestItem(int $requestId): ?array
+    {
+        try {
+            $stmt = $this->pdo->prepare(
+                'SELECT r.request_id, r.request_number, r.description, r.branch_id,
+                        b.branch_name, r.estimated_value, r.currency, r.status
+                   FROM procurement_requests r
+                   LEFT JOIN branches b ON b.branch_id = r.branch_id
+                  WHERE r.request_id = ?
+                  LIMIT 1'
+            );
+            $stmt->execute([$requestId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $row === false ? null : $row;
+        } catch (Throwable $e) {
+            error_log('ReminderService::loadRequestItem error: ' . $e->getMessage());
+            return null;
         }
     }
 
@@ -805,7 +862,7 @@ class ReminderService
                         }
                     }
 
-                    $status = $notificationId === null ? 'failed' : 'sent';
+                    $status = ($notificationId === null || $error !== null) ? 'failed' : 'sent';
 
                     $this->logDispatch([
                         'execution_id'     => $executionId,

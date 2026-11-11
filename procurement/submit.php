@@ -86,17 +86,13 @@ try {
     $estimatedValue = (float)($request['estimated_value'] ?? 0);
     $branchId = (int)($request['branch_id'] ?? 0);
 
-    // Convert to JMD equivalent for threshold comparison
+    // Convert to JMD equivalent for threshold comparison. Every non-JMD
+    // currency (USD/GBP/EUR/CAD) must be converted, not only USD, so the
+    // approval chain is computed against a true JMD-equivalent value.
     $currency = strtoupper(trim($request['currency'] ?? 'JMD'));
-    if ($currency === 'USD') {
-        $usdRate = (float)($request['usd_rate'] ?? 0);
-        if ($usdRate <= 0) {
-            $rateStmt = $pdo->prepare("SELECT config_value FROM system_config WHERE config_key = 'usd_to_jmd_rate'");
-            $rateStmt->execute();
-            $usdRate = (float)($rateStmt->fetchColumn() ?: 155.00);
-        }
-        $estimatedValue = $estimatedValue * $usdRate;
-    }
+    $recordRate = ($currency === 'USD') ? (float)($request['usd_rate'] ?? 0) : null;
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/services/CurrencyService.php';
+    $estimatedValue = CurrencyService::toJmd($estimatedValue, $currency, $pdo, $recordRate);
 
     // Get the approval chain based on branch, type, and amount (reads threshold from DB)
     $approvalRoles = getApprovalChain($requestType, $estimatedValue, $branchId, $pdo);

@@ -37,7 +37,7 @@ if (!$canAct) {
 }
 
 $disbStmt = $pdo->prepare("
-    SELECT disburse_id, amount_authorized, disbursement_date, disbursement_deadline
+    SELECT disburse_id, amount_authorized, currency, disbursement_date, disbursement_deadline
     FROM petty_cash_disbursements
     WHERE request_id = ?
     LIMIT 1
@@ -98,12 +98,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $insert = $pdo->prepare("
             INSERT INTO petty_cash_reconciliations
-            (disburse_id, purchase_amount, change_amount, submitted_by, submission_deadline_met, hours_from_disbursement, reconciliation_notes, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING_VERIFICATION')
+            (disburse_id, purchase_amount, currency, change_amount, submitted_by, submission_deadline_met, hours_from_disbursement, reconciliation_notes, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_VERIFICATION')
         ");
         $insert->execute([
             (int)$disbursement['disburse_id'],
             $purchaseAmount,
+            $disbursement['currency'] ?? 'JMD',
             $changeAmount,
             (int)($_SESSION['user_id'] ?? 0),
             $deadlineMet,

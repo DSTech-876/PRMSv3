@@ -234,10 +234,11 @@ require_once $_SERVER['DOCUMENT_ROOT'] . "/includes/header.php";
 $branches = $pdo->query("SELECT * FROM branches WHERE is_active = 1 AND branch_id NOT IN (4, 7) ORDER BY branch_name")->fetchAll();
 $previewRequestNumber = previewRequestNumber($pdo);
 
-// Get current USD rate for JS
-$sysRateStmt = $pdo->prepare("SELECT config_value FROM system_config WHERE config_key = 'usd_to_jmd_rate'");
-$sysRateStmt->execute();
-$jsUsdRate = (float)($sysRateStmt->fetchColumn() ?: 155.00);
+// Get current exchange rates for JS (threshold hint / conversion preview)
+$jsUsdRate = CurrencyService::jmdRate('USD', $pdo);
+$jsGbpRate = CurrencyService::jmdRate('GBP', $pdo);
+$jsEurRate = CurrencyService::jmdRate('EUR', $pdo);
+$jsCadRate = CurrencyService::jmdRate('CAD', $pdo);
 ?>
 
 <div class="container mt-4">
@@ -439,6 +440,7 @@ $jsUsdRate = (float)($sysRateStmt->fetchColumn() ?: 155.00);
 <script>
 const DIRECT_THRESHOLD = <?= $directThreshold ?>;
 const USD_RATE = <?= $jsUsdRate ?>;
+const JMD_RATES = { USD: <?= $jsUsdRate ?>, GBP: <?= $jsGbpRate ?>, EUR: <?= $jsEurRate ?>, CAD: <?= $jsCadRate ?>, JMD: 1 };
 
 function updateCurrencyLabel() {
     const currency = document.getElementById('currency_select').value;
@@ -461,10 +463,12 @@ function updateThresholdHint() {
     const hint = document.getElementById('threshold_hint');
     const convHint = document.getElementById('usd_conversion_hint');
 
-    // For threshold comparison, convert to JMD if needed
-    const jmdVal = currency === 'USD' ? val * USD_RATE : val;
+    // For threshold comparison, convert to JMD if needed (every non-JMD
+    // currency has a configured rate, not only USD).
+    const rate = JMD_RATES[currency] !== undefined ? JMD_RATES[currency] : 1;
+    const jmdVal = currency === 'JMD' ? val : val * rate;
 
-    if (currency === 'USD' && val > 0) {
+    if (currency !== 'JMD' && val > 0) {
         convHint.classList.remove('d-none');
         convHint.innerHTML = '<i class="bi bi-arrow-right-circle"></i> ≈ JMD ' + jmdVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     } else {

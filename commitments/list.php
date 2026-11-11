@@ -63,6 +63,7 @@ $sql = "
         po.po_id,
         pr.request_number,
         pr.status AS request_status,
+        pr.currency,
         po.po_number,
         b.branch_name
 
@@ -351,7 +352,7 @@ require_once $_SERVER['DOCUMENT_ROOT']."/config/helper.php";
             <small style="color: #555;">REQ-<?= str_pad((int)$row['request_id'], 6, '0', STR_PAD_LEFT) ?></small>
         </td>
         <td style="padding: 1rem; border: none; text-align: right; font-weight: 600; color: #1a1a1a;">
-            <?= money((float)$row['commitment_total']) ?>
+            <?= money((float)$row['commitment_total'], $row['currency'] ?? null) ?>
         </td>
         <td style="padding: 1rem; border: none;">
             <small style="color: #555;"><?= htmlspecialchars($row['branch_name'] ?? 'N/A') ?></small>

@@ -14,7 +14,8 @@ $stmt = $pdo->query("
         v.variation_amount,
         v.requested_at,
         u.full_name AS requested_by,
-        po.po_number
+        po.po_number,
+        po.currency
     FROM po_variations v
     JOIN purchase_orders po ON v.po_id = po.po_id
     JOIN users u ON v.requested_by = u.user_id
@@ -150,7 +151,7 @@ require_once $_SERVER['DOCUMENT_ROOT'] . "/includes/header.php";
                         <small class="text-muted">👤 <?= htmlspecialchars($v['requested_by']) ?></small>
                     </td>
                     <td style="padding: 1rem; border: none; text-align: right; font-weight: 600; color: #f5576c;">
-                        <?= money($v['variation_amount']) ?>
+                        <?= money($v['variation_amount'], $v['currency'] ?? null) ?>
                     </td>
                     <td style="padding: 1rem; border: none;">
                         <small class="text-muted">

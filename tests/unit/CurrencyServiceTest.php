@@ -164,4 +164,45 @@ final class CurrencyServiceTest extends PHPUnit\Framework\TestCase
     {
         $this->assertSame('JMD J$0.00', CurrencyService::formatGroupedTotals([], ' • ', null));
     }
+
+    public function testToJmdLeavesJmdAmountsUnchanged(): void
+    {
+        $this->assertSame(1000.0, CurrencyService::toJmd(1000, 'JMD', null));
+        $this->assertSame(1000.0, CurrencyService::toJmd(1000, null, null));
+    }
+
+    public function testToJmdConvertsNonUsdCurrenciesUsingConfiguredRates(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo->exec('CREATE TABLE system_config (config_key TEXT PRIMARY KEY, config_value TEXT)');
+        $pdo->exec("INSERT INTO system_config (config_key, config_value) VALUES ('gbp_to_jmd_rate', '200.00')");
+        $pdo->exec("INSERT INTO system_config (config_key, config_value) VALUES ('eur_to_jmd_rate', '170.00')");
+
+        // Previously GBP/EUR/CAD amounts were compared to the JMD threshold
+        // with no conversion at all; they must now use the configured rate.
+        $this->assertSame(20000.0, CurrencyService::toJmd(100, 'GBP', $pdo));
+        $this->assertSame(17000.0, CurrencyService::toJmd(100, 'EUR', $pdo));
+    }
+
+    public function testToJmdFallsBackToBuiltInRateWhenNotConfigured(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo->exec('CREATE TABLE system_config (config_key TEXT PRIMARY KEY, config_value TEXT)');
+
+        $this->assertSame(11300.0, CurrencyService::toJmd(100, 'CAD', $pdo));
+    }
+
+    public function testToJmdPrefersExplicitRecordRateOverConfiguredRate(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo->exec('CREATE TABLE system_config (config_key TEXT PRIMARY KEY, config_value TEXT)');
+        $pdo->exec("INSERT INTO system_config (config_key, config_value) VALUES ('usd_to_jmd_rate', '155.00')");
+
+        // The rate captured on the record (e.g. request.usd_rate at submission
+        // time) must win over the current system-wide configured rate.
+        $this->assertSame(16000.0, CurrencyService::toJmd(100, 'USD', $pdo, 160.0));
+    }
 }

@@ -35,7 +35,7 @@ if (!$parent) {
     exit;
 }
 
-$currency = 'JMD'; // PO amounts are always stored in JMD
+$currency = normalizeCurrency($parent['currency'] ?? 'JMD');
 
 /* Check PO is Open and fully approved before allowing adjustment */
 if ($parent['status'] !== 'Open') {
@@ -76,10 +76,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
     $stmt = $pdo->prepare("
         INSERT INTO purchase_orders
-        (po_type, parent_po_id, po_total, adjustment_reason, status, created_at)
-        VALUES ('ADJUSTMENT', ?, ?, ?, 'pending', NOW())
+        (po_type, parent_po_id, po_total, currency, adjustment_reason, status, created_at)
+        VALUES ('ADJUSTMENT', ?, ?, ?, ?, 'pending', NOW())
     ");
-    $stmt->execute([$parent_po_id, $amount, $reason]);
+    $stmt->execute([$parent_po_id, $amount, $currency, $reason]);
 
     logAudit(
         $pdo,

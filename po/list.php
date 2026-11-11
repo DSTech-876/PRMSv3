@@ -54,6 +54,7 @@ $sql = "
         c.commitment_number,
         pr.request_id,
         pr.request_number,
+        pr.currency,
         COALESCE(SUM(i.invoice_amount), 0) AS total_invoiced
     FROM purchase_orders po
     JOIN commitments c ON po.commitment_id = c.commitment_id
@@ -349,9 +350,9 @@ require_once $_SERVER['DOCUMENT_ROOT'] . "/includes/header.php";
                 <td style="padding: 1rem; border: none; vertical-align: middle;">
                     <small style="color: #999;"><?= htmlspecialchars($po['commitment_number']) ?></small>
                 </td>
-                <td style="padding: 1rem; border: none; vertical-align: middle; text-align: right; font-weight: 600; color: #1a1a1a;"><?= money((float)$po['po_total']) ?></td>
+                <td style="padding: 1rem; border: none; vertical-align: middle; text-align: right; font-weight: 600; color: #1a1a1a;"><?= money((float)$po['po_total'], $po['currency'] ?? null) ?></td>
                 <td style="padding: 1rem; border: none; vertical-align: middle; text-align: right;">
-                    <span style="display: inline-block; background-color: #e3f2fd; color: #1565c0; padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 600; font-size: 0.85rem;"><?= money((float)$po['total_invoiced']) ?></span>
+                    <span style="display: inline-block; background-color: #e3f2fd; color: #1565c0; padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 600; font-size: 0.85rem;"><?= money((float)$po['total_invoiced'], $po['currency'] ?? null) ?></span>
                 </td>
                 <td style="padding: 1rem; border: none; vertical-align: middle;">
                     <?php

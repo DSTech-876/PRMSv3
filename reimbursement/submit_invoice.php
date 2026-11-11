@@ -103,13 +103,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $insStmt = $pdo->prepare("
             INSERT INTO reimbursement_invoices
-            (request_id, invoice_stage, invoice_amount, submitted_by, submitted_date, goods_service_verified)
-            VALUES (?, ?, ?, ?, NOW(), 0)
+            (request_id, invoice_stage, invoice_amount, currency, submitted_by, submitted_date, goods_service_verified)
+            VALUES (?, ?, ?, ?, ?, NOW(), 0)
         ");
         $insStmt->execute([
             $request_id,
             $invoice_stage,
             $invoice_amount,
+            $request['currency'] ?? 'JMD',
             $_SESSION['user_id'],
         ]);
 

@@ -56,6 +56,17 @@ INSERT INTO system_config (config_key, config_value, description, created_at)
 VALUES ('enable_multi_currency', '1', 'Enable multi-currency selection on transactions (1=enabled, 0=single currency)', NOW())
 ON DUPLICATE KEY UPDATE config_value = config_value;
 
+-- Exchange rates used to convert non-JMD estimated values to their JMD
+-- equivalent for threshold/approval-chain decisions (see CurrencyService::toJmd()).
+-- `config_value = config_value` on duplicate preserves any rate an admin has
+-- already configured; these rows only seed a starting value.
+INSERT INTO system_config (config_key, config_value, description, created_at)
+VALUES
+    ('gbp_to_jmd_rate', '196.00', 'Current GBP to JMD exchange rate for currency conversion', NOW()),
+    ('eur_to_jmd_rate', '168.00', 'Current EUR to JMD exchange rate for currency conversion', NOW()),
+    ('cad_to_jmd_rate', '113.00', 'Current CAD to JMD exchange rate for currency conversion', NOW())
+ON DUPLICATE KEY UPDATE config_value = config_value;
+
 -- ===========================================================================
 -- 2. WIDEN EXISTING CURRENCY COLUMNS  ENUM('JMD','USD') -> CHAR(3)
 --    MODIFY (not DROP/ADD) so every existing value is preserved verbatim.
@@ -219,18 +230,29 @@ CALL prms_add_index_if_missing('payments',             'idx_pay_currency', '`cur
 --    Adds the approval-broadcast and reminder types used by the new services.
 --    Existing enum members are preserved in their original order.
 -- ===========================================================================
+-- Extend the existing ENUM definition in place (rather than replacing it with
+-- a fixed literal list) so any deployment-specific members already present
+-- (for example 'finance_action_required' from
+-- migrations/2026_08_25_user_notifications_finance_action_type.sql) survive
+-- untouched, and only the new members are appended.
 SET @nt_type = (
     SELECT COLUMN_TYPE FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE()
       AND TABLE_NAME = 'user_notifications'
       AND COLUMN_NAME = 'type'
 );
-SET @ddl = IF(@nt_type IS NOT NULL AND LOCATE('procurement_approved', @nt_type) = 0,
-    "ALTER TABLE `user_notifications` MODIFY COLUMN `type` ENUM(
-        'approval_needed','return_correction','clarification','rejection',
-        'cancellation','draft_ready','submission','finance_action_required',
-        'procurement_approved','reminder','escalation'
-     ) NOT NULL",
+SET @nt_new_type = @nt_type;
+SET @nt_new_type = IF(@nt_new_type IS NOT NULL AND LOCATE("'procurement_approved'", @nt_new_type) = 0,
+    CONCAT(SUBSTRING(@nt_new_type, 1, LENGTH(@nt_new_type) - 1), ",'procurement_approved')"),
+    @nt_new_type);
+SET @nt_new_type = IF(@nt_new_type IS NOT NULL AND LOCATE("'reminder'", @nt_new_type) = 0,
+    CONCAT(SUBSTRING(@nt_new_type, 1, LENGTH(@nt_new_type) - 1), ",'reminder')"),
+    @nt_new_type);
+SET @nt_new_type = IF(@nt_new_type IS NOT NULL AND LOCATE("'escalation'", @nt_new_type) = 0,
+    CONCAT(SUBSTRING(@nt_new_type, 1, LENGTH(@nt_new_type) - 1), ",'escalation')"),
+    @nt_new_type);
+SET @ddl = IF(@nt_type IS NOT NULL AND @nt_new_type <> @nt_type,
+    CONCAT('ALTER TABLE `user_notifications` MODIFY COLUMN `type` ', @nt_new_type, ' NOT NULL'),
     'SELECT 1');
 PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
@@ -363,6 +385,6 @@ WHERE p.name IN ('manage_reminder_settings', 'manage_currencies')
 -- DROP TABLE IF EXISTS reminder_dispatch_log;
 -- DROP TABLE IF EXISTS reminder_settings;
 -- DROP TABLE IF EXISTS currencies;
--- DELETE FROM system_config WHERE config_key IN ('default_currency','enable_multi_currency');
+-- DELETE FROM system_config WHERE config_key IN ('default_currency','enable_multi_currency','gbp_to_jmd_rate','eur_to_jmd_rate','cad_to_jmd_rate');
 -- ALTER TABLE commitments     DROP COLUMN currency;  -- repeat per table added in section 3
 -- ALTER TABLE procurement_requests MODIFY COLUMN currency ENUM('JMD','USD') NOT NULL DEFAULT 'JMD';

@@ -269,11 +269,21 @@ final class ReminderServiceTest extends PHPUnit\Framework\TestCase
         );
         $this->pdo->exec('CREATE TABLE branches (branch_id INTEGER PRIMARY KEY, branch_name TEXT)');
         $this->pdo->exec('CREATE TABLE rfqs (rfq_id INTEGER PRIMARY KEY, request_id INTEGER)');
-        $this->pdo->exec('CREATE TABLE commitments (commitment_id INTEGER PRIMARY KEY, request_id INTEGER)');
         $this->pdo->exec(
-            'CREATE TABLE purchase_orders (po_id INTEGER PRIMARY KEY, commitment_id INTEGER, po_number TEXT)'
+            'CREATE TABLE commitments (commitment_id INTEGER PRIMARY KEY, request_id INTEGER, commitment_date TEXT)'
         );
-        $this->pdo->exec('CREATE TABLE invoices (invoice_id INTEGER PRIMARY KEY, po_id INTEGER, status TEXT)');
+        $this->pdo->exec(
+            'CREATE TABLE purchase_orders
+                (po_id INTEGER PRIMARY KEY, commitment_id INTEGER, po_number TEXT, po_date TEXT)'
+        );
+        $this->pdo->exec(
+            'CREATE TABLE invoices
+                (invoice_id INTEGER PRIMARY KEY, po_id INTEGER, status TEXT, invoice_date TEXT)'
+        );
+        $this->pdo->exec(
+            'CREATE TABLE payments
+                (payment_id INTEGER PRIMARY KEY, invoice_id INTEGER, payment_date TEXT)'
+        );
         $this->pdo->exec(
             'CREATE TABLE inv_goods_received (grn_id INTEGER PRIMARY KEY, po_reference TEXT, status TEXT)'
         );
@@ -329,15 +339,55 @@ final class ReminderServiceTest extends PHPUnit\Framework\TestCase
              VALUES (1, 'PR001', 'Chairs', 1, 100, 'JMD', 'APPROVED', 1, date('now','-20 days')),
                     (2, 'PR002', 'Desks',  1, 100, 'JMD', 'APPROVED', 1, date('now','-20 days'))"
         );
-        $this->pdo->exec('INSERT INTO commitments VALUES (10, 1), (20, 2)');
-        $this->pdo->exec("INSERT INTO purchase_orders VALUES (100, 10, 'PO-1'), (200, 20, 'PO-2')");
-        $this->pdo->exec("INSERT INTO invoices VALUES (1000, 100, 'Paid'), (2000, 200, 'Paid')");
+        $this->pdo->exec(
+            "INSERT INTO commitments (commitment_id, request_id, commitment_date)
+             VALUES (10, 1, date('now','-20 days')), (20, 2, date('now','-20 days'))"
+        );
+        $this->pdo->exec(
+            "INSERT INTO purchase_orders (po_id, commitment_id, po_number, po_date)
+             VALUES (100, 10, 'PO-1', date('now','-15 days')), (200, 20, 'PO-2', date('now','-15 days'))"
+        );
+        $this->pdo->exec(
+            "INSERT INTO invoices (invoice_id, po_id, status, invoice_date)
+             VALUES (1000, 100, 'Paid', date('now','-10 days')), (2000, 200, 'Paid', date('now','-10 days'))"
+        );
+        $this->pdo->exec(
+            "INSERT INTO payments (payment_id, invoice_id, payment_date)
+             VALUES (1, 1000, date('now','-7 days')), (2, 2000, date('now','-7 days'))"
+        );
         /* PR002's goods were received; PR001's were not. */
         $this->pdo->exec("INSERT INTO inv_goods_received VALUES (1, 'PO-2', 'RECEIVED')");
 
-        $refs = array_column($this->service->findOutstanding(ReminderService::TYPE_INVENTORY), 'request_number');
+        $rows = $this->service->findOutstanding(ReminderService::TYPE_INVENTORY);
+        $refs = array_column($rows, 'request_number');
 
         $this->assertSame(['PR001'], $refs);
+        $this->assertSame(
+            7,
+            (int)$rows[0]['days_outstanding'],
+            'Inventory reminder ages from the payment date, not the original approval'
+        );
+    }
+
+    public function testPoReminderAgesFromCommitmentDateNotApproval(): void
+    {
+        $this->createLifecycleSchema();
+        $this->pdo->exec('INSERT INTO branches VALUES (1, \'Kingston\')');
+        $this->pdo->exec(
+            "INSERT INTO procurement_requests
+                (request_id, request_number, description, branch_id, estimated_value, currency, status, requires_rfq, approved_at)
+             VALUES (1, 'PR001', 'Chairs', 1, 100, 'JMD', 'APPROVED', 1, date('now','-60 days'))"
+        );
+        /* Commitment created yesterday for a request approved 60 days ago. */
+        $this->pdo->exec(
+            "INSERT INTO commitments (commitment_id, request_id, commitment_date)
+             VALUES (10, 1, date('now','-1 days'))"
+        );
+
+        $rows = $this->service->findOutstanding(ReminderService::TYPE_PO);
+
+        $this->assertSame(['PR001'], array_column($rows, 'request_number'));
+        $this->assertSame(1, (int)$rows[0]['days_outstanding']);
     }
 
     public function testMessageCarriesTheRequiredReminderContext(): void

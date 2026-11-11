@@ -22,6 +22,13 @@ try {
     /* Reporting currency: explicit ?currency= filter, else the system default. */
     $reportCurrency = CurrencyService::normalize($_GET['currency'] ?? null, $pdo);
     $curSym = CurrencyService::symbol($reportCurrency, $pdo);
+    // Only restrict/relabel data when the caller explicitly asked for a
+    // currency; otherwise every currency's rows are kept and each row must
+    // show its own real currency code instead of being mislabeled with the
+    // default symbol.
+    $explicitCurrency = (isset($_GET['currency']) && trim((string)$_GET['currency']) !== '')
+        ? CurrencyService::normalize($_GET['currency'], $pdo)
+        : null;
     $date = date('d M Y');
     $time = date('g:i A');
     $procurementVisibilityWhere = (function_exists('isProcurementVisibilityRestrictedRole')
@@ -43,7 +50,16 @@ try {
     // Handle different report types
     switch ($reportType) {
         case 'procurement_status':
-            $data = $pdo->query("SELECT status, COUNT(*) as count, COALESCE(SUM(estimated_value), 0) as total_value FROM procurement_requests{$procurementVisibilityWhere} GROUP BY status ORDER BY count DESC")->fetchAll();
+            $reqCurSql = "SELECT status, COUNT(*) as count, COALESCE(SUM(estimated_value), 0) as total_value FROM procurement_requests{$procurementVisibilityWhere}";
+            $reqCurParams = [];
+            if ($explicitCurrency !== null) {
+                $reqCurSql .= $procurementVisibilityWhere ? ' AND currency = ?' : ' WHERE currency = ?';
+                $reqCurParams[] = $explicitCurrency;
+            }
+            $reqCurSql .= " GROUP BY status ORDER BY count DESC";
+            $reqCurStmt = $pdo->prepare($reqCurSql);
+            $reqCurStmt->execute($reqCurParams);
+            $data = $reqCurStmt->fetchAll();
             $title = "Procurement by Status";
             $subtitle = "Distribution of procurement requests across different statuses";
             
@@ -68,7 +84,16 @@ HTML;
         break;
 
     case 'procurement_type':
-        $data = $pdo->query("SELECT COALESCE(procurement_method, 'UNSPECIFIED') as type, COUNT(*) as count, COALESCE(SUM(estimated_value), 0) as total_value FROM procurement_requests{$procurementVisibilityWhere} GROUP BY procurement_method ORDER BY total_value DESC")->fetchAll();
+        $typeSql = "SELECT COALESCE(procurement_method, 'UNSPECIFIED') as type, COUNT(*) as count, COALESCE(SUM(estimated_value), 0) as total_value FROM procurement_requests{$procurementVisibilityWhere}";
+        $typeParams = [];
+        if ($explicitCurrency !== null) {
+            $typeSql .= $procurementVisibilityWhere ? ' AND currency = ?' : ' WHERE currency = ?';
+            $typeParams[] = $explicitCurrency;
+        }
+        $typeSql .= " GROUP BY procurement_method ORDER BY total_value DESC";
+        $typeStmt = $pdo->prepare($typeSql);
+        $typeStmt->execute($typeParams);
+        $data = $typeStmt->fetchAll();
         $title = "Procurement by Type";
         $subtitle = "Procurement methods and their distribution";
         
@@ -101,7 +126,15 @@ HTML;
         break;
 
     case 'procurement_branch':
-        $data = $pdo->query("SELECT b.branch_id, b.branch_name, COUNT(pr.request_id) as count, COALESCE(SUM(pr.estimated_value), 0) as total_value FROM branches b LEFT JOIN procurement_requests pr ON b.branch_id = pr.branch_id{$procurementVisibilityJoinClause} GROUP BY b.branch_id, b.branch_name ORDER BY total_value DESC")->fetchAll();
+        $branchExtraJoin = $procurementVisibilityJoinClause;
+        $branchParams = [];
+        if ($explicitCurrency !== null) {
+            $branchExtraJoin .= ' AND pr.currency = ?';
+            $branchParams[] = $explicitCurrency;
+        }
+        $branchStmt = $pdo->prepare("SELECT b.branch_id, b.branch_name, COUNT(pr.request_id) as count, COALESCE(SUM(pr.estimated_value), 0) as total_value FROM branches b LEFT JOIN procurement_requests pr ON b.branch_id = pr.branch_id{$branchExtraJoin} GROUP BY b.branch_id, b.branch_name ORDER BY total_value DESC");
+        $branchStmt->execute($branchParams);
+        $data = $branchStmt->fetchAll();
         $title = "Procurement by Department/Branch";
         $subtitle = "Procurement requests and spending by department or branch";
         
@@ -151,7 +184,16 @@ HTML;
         break;
 
     case 'po_status':
-        $statusData = $pdo->query("SELECT status, COUNT(*) as count, COALESCE(SUM(po_total), 0) as total_amount FROM purchase_orders GROUP BY status ORDER BY count DESC")->fetchAll();
+        $poStatusSql = "SELECT status, COUNT(*) as count, COALESCE(SUM(po_total), 0) as total_amount FROM purchase_orders";
+        $poStatusParams = [];
+        if ($explicitCurrency !== null) {
+            $poStatusSql .= " WHERE currency = ?";
+            $poStatusParams[] = $explicitCurrency;
+        }
+        $poStatusSql .= " GROUP BY status ORDER BY count DESC";
+        $poStatusStmt = $pdo->prepare($poStatusSql);
+        $poStatusStmt->execute($poStatusParams);
+        $statusData = $poStatusStmt->fetchAll();
         $title = "Purchase Order (PO) Status Report";
         $subtitle = "Complete overview of all purchase orders and their current status";
         
@@ -177,7 +219,16 @@ HTML;
 
     case 'period':
     case 'periods':
-        $poData = $pdo->query("SELECT DATE_FORMAT(po_date, '%Y-%m') as period, COUNT(*) as count, COALESCE(SUM(po_total), 0) as total FROM purchase_orders WHERE po_date IS NOT NULL GROUP BY DATE_FORMAT(po_date, '%Y-%m') ORDER BY period DESC LIMIT 12")->fetchAll();
+        $periodSql = "SELECT DATE_FORMAT(po_date, '%Y-%m') as period, COUNT(*) as count, COALESCE(SUM(po_total), 0) as total FROM purchase_orders WHERE po_date IS NOT NULL";
+        $periodParams = [];
+        if ($explicitCurrency !== null) {
+            $periodSql .= " AND currency = ?";
+            $periodParams[] = $explicitCurrency;
+        }
+        $periodSql .= " GROUP BY DATE_FORMAT(po_date, '%Y-%m') ORDER BY period DESC LIMIT 12";
+        $periodStmt = $pdo->prepare($periodSql);
+        $periodStmt->execute($periodParams);
+        $poData = $periodStmt->fetchAll();
         $title = "Period Reports - Purchase Orders";
         $subtitle = "Monthly procurement and purchase order activity";
         
@@ -201,7 +252,16 @@ HTML;
         break;
 
     case 'amounts_paid':
-        $paymentData = $pdo->query("SELECT DATE_FORMAT(p.payment_date, '%Y-%m') as period, COUNT(*) as count, COALESCE(SUM(p.payment_amount), 0) as total FROM payments p WHERE p.payment_date IS NOT NULL GROUP BY DATE_FORMAT(p.payment_date, '%Y-%m') ORDER BY period DESC LIMIT 12")->fetchAll();
+        $paidSql = "SELECT DATE_FORMAT(p.payment_date, '%Y-%m') as period, COUNT(*) as count, COALESCE(SUM(p.payment_amount), 0) as total FROM payments p WHERE p.payment_date IS NOT NULL";
+        $paidParams = [];
+        if ($explicitCurrency !== null) {
+            $paidSql .= " AND p.currency = ?";
+            $paidParams[] = $explicitCurrency;
+        }
+        $paidSql .= " GROUP BY DATE_FORMAT(p.payment_date, '%Y-%m') ORDER BY period DESC LIMIT 12";
+        $paidStmt = $pdo->prepare($paidSql);
+        $paidStmt->execute($paidParams);
+        $paymentData = $paidStmt->fetchAll();
         $title = "Amounts Paid Report";
         $subtitle = "Payment tracking and analysis by period";
         
@@ -225,7 +285,16 @@ HTML;
         break;
 
     case 'outstanding':
-        $data = $pdo->query("SELECT c.commitment_id, c.commitment_date, c.estimated_value, COALESCE(c.balance, c.estimated_value) as outstanding, pr.request_number FROM commitments c LEFT JOIN procurement_requests pr ON c.request_id = pr.request_id WHERE COALESCE(c.balance, c.estimated_value) > 0 ORDER BY c.commitment_date DESC LIMIT 50")->fetchAll();
+        $outSql = "SELECT c.commitment_id, c.commitment_date, c.estimated_value, COALESCE(c.balance, c.estimated_value) as outstanding, pr.request_number FROM commitments c LEFT JOIN procurement_requests pr ON c.request_id = pr.request_id WHERE COALESCE(c.balance, c.estimated_value) > 0";
+        $outParams = [];
+        if ($explicitCurrency !== null) {
+            $outSql .= " AND c.currency = ?";
+            $outParams[] = $explicitCurrency;
+        }
+        $outSql .= " ORDER BY c.commitment_date DESC LIMIT 50";
+        $outStmt = $pdo->prepare($outSql);
+        $outStmt->execute($outParams);
+        $data = $outStmt->fetchAll();
         $title = "Outstanding Commitments & PO";
         $subtitle = "Summary of open commitments and outstanding purchase orders";
         
@@ -258,41 +327,83 @@ HTML;
 
     case 'branch_outstanding':
     default:
-        $data = $pdo->query("
-            SELECT branch_name, total_invoiced, total_paid, outstanding
-            FROM vw_branch_outstanding
-            ORDER BY outstanding DESC, branch_name ASC
-        ")->fetchAll(PDO::FETCH_ASSOC);
+        /* The underlying invoices/payments carry their own currency; filter
+           to the explicitly requested currency when given, otherwise keep
+           every currency and label each row with its real code so mixed
+           currencies are never summed together or mislabeled. */
+        $boSql = "
+            SELECT
+                b.branch_name,
+                i.currency AS currency,
+                COALESCE(SUM(i.invoice_amount), 0) AS total_invoiced,
+                COALESCE(SUM(pay.paid_amount), 0) AS total_paid,
+                COALESCE(SUM(i.invoice_amount), 0) - COALESCE(SUM(pay.paid_amount), 0) AS outstanding
+            FROM branches b
+            JOIN procurement_requests pr ON pr.branch_id = b.branch_id
+            JOIN commitments c ON c.request_id = pr.request_id
+            JOIN purchase_orders po ON po.commitment_id = c.commitment_id
+            JOIN invoices i ON i.po_id = po.po_id
+            LEFT JOIN (
+                SELECT invoice_id, SUM(payment_amount) AS paid_amount
+                FROM payments
+                GROUP BY invoice_id
+            ) pay ON pay.invoice_id = i.invoice_id
+        ";
+        $boParams = [];
+        if ($explicitCurrency !== null) {
+            $boSql .= " WHERE i.currency = ?";
+            $boParams[] = $explicitCurrency;
+        }
+        $boSql .= " GROUP BY b.branch_name, i.currency ORDER BY outstanding DESC, b.branch_name ASC";
+        $boStmt = $pdo->prepare($boSql);
+        $boStmt->execute($boParams);
+        $data = $boStmt->fetchAll(PDO::FETCH_ASSOC);
         $title = "Branch Outstanding Report";
         $subtitle = "Financial summary of invoiced, paid & outstanding amounts per branch";
 
-        $totalsStmt = $pdo->query("
-            SELECT
-                COALESCE(SUM(total_invoiced), 0) AS grand_invoiced,
-                COALESCE(SUM(total_paid), 0) AS grand_paid,
-                COALESCE(SUM(outstanding), 0) AS grand_outstanding
-            FROM vw_branch_outstanding
-        ");
-        $totals = $totalsStmt->fetch(PDO::FETCH_ASSOC) ?: [];
-        $grandInvoiced = (float) ($totals['grand_invoiced'] ?? 0);
-        $grandPaid = (float) ($totals['grand_paid'] ?? 0);
-        $grandOutstanding = (float) ($totals['grand_outstanding'] ?? 0);
-        
-        $fmtInvoiced    = $curSym . number_format($grandInvoiced, 2);
-        $fmtPaid        = $curSym . number_format($grandPaid, 2);
-        $fmtOutstanding = $curSym . number_format($grandOutstanding, 2);
-        
+        // Grand totals are only meaningful within a single currency; group
+        // them by currency rather than collapsing every currency into one sum.
+        $grandByCurrency = [];
+        foreach ($data as $r) {
+            $cur = $r['currency'] ?? CurrencyService::defaultCurrency($pdo);
+            if (!isset($grandByCurrency[$cur])) {
+                $grandByCurrency[$cur] = ['invoiced' => 0.0, 'paid' => 0.0, 'outstanding' => 0.0];
+            }
+            $grandByCurrency[$cur]['invoiced'] += (float) ($r['total_invoiced'] ?? 0);
+            $grandByCurrency[$cur]['paid'] += (float) ($r['total_paid'] ?? 0);
+            $grandByCurrency[$cur]['outstanding'] += (float) ($r['outstanding'] ?? 0);
+        }
+
+        $summaryRows = '';
+        foreach ($grandByCurrency as $cur => $g) {
+            $sym = CurrencyService::symbol($cur, $pdo);
+            $summaryRows .= "<tr><td style=\"padding:4px 0;font-weight:600;\">{$cur}</td>"
+                . "<td style=\"padding:4px 10px;text-align:right;\">{$sym}" . number_format($g['invoiced'], 2) . "</td>"
+                . "<td style=\"padding:4px 10px;text-align:right;color:#198754;\">{$sym}" . number_format($g['paid'], 2) . "</td>"
+                . "<td style=\"padding:4px 10px;text-align:right;color:#dc3545;font-weight:700;\">{$sym}" . number_format($g['outstanding'], 2) . "</td></tr>";
+        }
+        if ($summaryRows === '') {
+            $sym = $curSym;
+            $summaryRows = "<tr><td style=\"padding:4px 0;font-weight:600;\">" . htmlspecialchars($reportCurrency) . "</td>"
+                . "<td style=\"padding:4px 10px;text-align:right;\">{$sym}0.00</td>"
+                . "<td style=\"padding:4px 10px;text-align:right;color:#198754;\">{$sym}0.00</td>"
+                . "<td style=\"padding:4px 10px;text-align:right;color:#dc3545;font-weight:700;\">{$sym}0.00</td></tr>";
+        }
+
         $rows = '';
         foreach ($data as $i => $r) {
             $bg = ($i % 2 === 0) ? '#ffffff' : '#f8f9fa';
+            $rowCur = $r['currency'] ?? CurrencyService::defaultCurrency($pdo);
+            $rowSym = CurrencyService::symbol($rowCur, $pdo);
             $outVal = floatval($r['outstanding'] ?? 0);
             $outColor = $outVal > 0 ? '#dc3545' : '#198754';
             $num = $i + 1;
             $name = htmlspecialchars($r['branch_name'] ?? 'Unknown');
-            $inv = $curSym . number_format(floatval($r['total_invoiced'] ?? 0), 2);
-            $pd  = $curSym . number_format(floatval($r['total_paid'] ?? 0), 2);
-            $out = $curSym . number_format($outVal, 2);
-            $rows .= "<tr style=\"background:{$bg};\"><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:center;color:#6c757d;\">{$num}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;font-weight:600;\">{$name}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$inv}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;color:#198754;\">{$pd}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;font-weight:700;color:{$outColor};\">{$out}</td></tr>";
+            $cur = htmlspecialchars($rowCur);
+            $inv = $rowSym . number_format(floatval($r['total_invoiced'] ?? 0), 2);
+            $pd  = $rowSym . number_format(floatval($r['total_paid'] ?? 0), 2);
+            $out = $rowSym . number_format($outVal, 2);
+            $rows .= "<tr style=\"background:{$bg};\"><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:center;color:#6c757d;\">{$num}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;font-weight:600;\">{$name}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:center;\">{$cur}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;\">{$inv}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;color:#198754;\">{$pd}</td><td style=\"padding:8px 10px;border-bottom:1px solid #e9ecef;text-align:right;font-weight:700;color:{$outColor};\">{$out}</td></tr>";
         }
 
         $html = <<<HTML
@@ -333,29 +444,20 @@ HTML;
   <p style="margin:0;color:#6c757d;font-size:11px;">Financial summary of invoiced, paid &amp; outstanding amounts per branch</p>
 </div>
 
-<!-- Summary Cards -->
+<!-- Summary Totals (grouped per currency; never summed across currencies) -->
 <div style="padding:0 24px 16px;">
-  <table width="100%" cellspacing="0" cellpadding="0">
-    <tr>
-      <td width="33%" style="padding-right:8px;">
-        <div style="background:#e8f5e9;border-radius:8px;padding:12px 14px;">
-          <span style="font-size:10px;text-transform:uppercase;color:#6c757d;font-weight:600;">Total Invoiced</span><br>
-          <span style="font-size:18px;font-weight:700;color:#212529;">{$fmtInvoiced}</span>
-        </div>
-      </td>
-      <td width="33%" style="padding:0 4px;">
-        <div style="background:#e3f2fd;border-radius:8px;padding:12px 14px;">
-          <span style="font-size:10px;text-transform:uppercase;color:#6c757d;font-weight:600;">Total Paid</span><br>
-          <span style="font-size:18px;font-weight:700;color:#198754;">{$fmtPaid}</span>
-        </div>
-      </td>
-      <td width="33%" style="padding-left:8px;">
-        <div style="background:#fce4ec;border-radius:8px;padding:12px 14px;">
-          <span style="font-size:10px;text-transform:uppercase;color:#6c757d;font-weight:600;">Outstanding</span><br>
-          <span style="font-size:18px;font-weight:700;color:#dc3545;">{$fmtOutstanding}</span>
-        </div>
-      </td>
-    </tr>
+  <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+    <thead>
+      <tr style="background:#f1f3f5;">
+        <th style="padding:4px 0;text-align:left;font-size:10px;text-transform:uppercase;color:#6c757d;">Currency</th>
+        <th style="padding:4px 10px;text-align:right;font-size:10px;text-transform:uppercase;color:#6c757d;">Total Invoiced</th>
+        <th style="padding:4px 10px;text-align:right;font-size:10px;text-transform:uppercase;color:#6c757d;">Total Paid</th>
+        <th style="padding:4px 10px;text-align:right;font-size:10px;text-transform:uppercase;color:#6c757d;">Outstanding</th>
+      </tr>
+    </thead>
+    <tbody>
+      {$summaryRows}
+    </tbody>
   </table>
 </div>
 
@@ -366,6 +468,7 @@ HTML;
       <tr style="background:#0b5e2b;">
         <th style="padding:10px;color:#fff;text-align:center;font-size:11px;width:5%;">#</th>
         <th style="padding:10px;color:#fff;text-align:left;font-size:11px;">Branch</th>
+        <th style="padding:10px;color:#fff;text-align:center;font-size:11px;">Currency</th>
         <th style="padding:10px;color:#fff;text-align:right;font-size:11px;">Total Invoiced</th>
         <th style="padding:10px;color:#fff;text-align:right;font-size:11px;">Total Paid</th>
         <th style="padding:10px;color:#fff;text-align:right;font-size:11px;">Outstanding</th>

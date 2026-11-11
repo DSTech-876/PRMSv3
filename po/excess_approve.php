@@ -31,7 +31,7 @@ if (!$po) {
     exit;
 }
 
-$exCurrency = 'JMD'; // PO amounts are always stored in JMD
+$exCurrency = normalizeCurrency($po['currency'] ?? 'JMD');
 
 /* Check if warning exists */
 $check = $pdo->prepare("
@@ -91,11 +91,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             /* 2️⃣ Insert approved variation */
             $pdo->prepare("
                 INSERT INTO po_variations
-                (po_id, variation_amount, reason, requested_by, approved_by, approved_at, status)
-                VALUES (?, ?, ?, ?, ?, NOW(), 'APPROVED')
+                (po_id, variation_amount, currency, reason, requested_by, approved_by, approved_at, status)
+                VALUES (?, ?, ?, ?, ?, ?, NOW(), 'APPROVED')
             ")->execute([
                 $po_id,
                 $excess_amount,
+                $exCurrency,
                 'Approved PO excess',
                 $requested_by,
                 $user_id

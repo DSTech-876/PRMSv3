@@ -475,11 +475,13 @@ function resolveWorkflow(PDO $pdo, string $requestType, float $estimatedValue, ?
         $usdRate = $GLOBALS['request']['usd_rate'] ?? null;
     }
     if (!$currency) $currency = 'JMD';
-    if (!$usdRate) {
-        // fallback to system rate
-        $usdRate = SystemConfigService::getFloat($pdo, 'usd_to_jmd_rate', 155.00);
-    }
-    $jmdValue = ($currency === 'USD') ? $estimatedValue * (float)$usdRate : $estimatedValue;
+    require_once __DIR__ . '/../services/CurrencyService.php';
+    // Use the per-record USD rate only for USD (the only currency that
+    // captures its own rate on the request); every other non-JMD currency
+    // (GBP/EUR/CAD) is converted using the configured system rate so the
+    // threshold comparison below is never a mismatched-currency comparison.
+    $recordRate = (strtoupper((string)$currency) === 'USD') ? (float)($usdRate ?? 0) : null;
+    $jmdValue = CurrencyService::toJmd($estimatedValue, $currency, $pdo, $recordRate);
     $isUnderThreshold = $jmdValue <= $threshold;
     $isDirect = isDirectProcurement($requestType, $jmdValue);
     $approvalChain = getApprovalChain($requestType, $jmdValue, $branchId, $pdo);

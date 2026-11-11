@@ -29,19 +29,18 @@ $data = [];
 foreach ($rows as $r) {
     $type = $r['type'];
     if (!isset($data[$type])) {
-        $data[$type] = ['type' => $type, 'count' => 0, 'total_value' => 0.0, 'currency_rows' => []];
+        $data[$type] = ['type' => $type, 'count' => 0, 'currency_rows' => []];
     }
     $data[$type]['count'] += (int)$r['count'];
-    $data[$type]['total_value'] += (float)$r['total_value'];
     $data[$type]['currency_rows'][] = $r;
 }
-usort($data, fn($a, $b) => $b['total_value'] <=> $a['total_value']);
+// Sort by request count (currency-agnostic) rather than summing mixed-currency
+// values into a single scalar.
+usort($data, fn($a, $b) => $b['count'] <=> $a['count']);
 
 $totalCount = 0;
-$totalValue = 0;
 foreach ($data as $r) {
     $totalCount += $r['count'];
-    $totalValue += $r['total_value'];
 }
 $totalByCurrency = CurrencyService::groupTotals($rows, 'total_value', 'currency', $pdo);
 $totalValueDisplay = CurrencyService::formatGroupedTotals($totalByCurrency, ' • ', $pdo);
@@ -123,7 +122,7 @@ $typeLabels = [
               <th class="text-dark">Procurement Method</th>
               <th class="text-dark text-end" style="width:15%;">Count</th>
               <th class="text-dark text-end" style="width:20%;">Total Value</th>
-              <th class="text-dark text-end" style="width:15%;">% of Value</th>
+              <th class="text-dark text-end" style="width:15%;">% of Value (per currency)</th>
             </tr>
           </thead>
           <tbody>
@@ -144,7 +143,18 @@ $typeLabels = [
               </td>
               <td class="text-end fw-semibold"><?= $row['count'] ?></td>
               <td class="text-end"><?= CurrencyService::formatGroupedTotals(CurrencyService::groupTotals($row['currency_rows'], 'total_value', 'currency', $pdo), ' • ', $pdo) ?></td>
-              <td class="text-end"><?= $totalValue > 0 ? number_format(($row['total_value'] / $totalValue) * 100, 2) : '0.00' ?>%</td>
+              <td class="text-end">
+                <?php
+                  $pctParts = [];
+                  foreach ($row['currency_rows'] as $cr) {
+                      $crCur = $cr['currency'];
+                      $crGrandTotal = $totalByCurrency[$crCur]['total'] ?? 0.0;
+                      $crPct = $crGrandTotal > 0 ? ((float)$cr['total_value'] / $crGrandTotal) * 100 : 0;
+                      $pctParts[] = htmlspecialchars($crCur) . ' ' . number_format($crPct, 2) . '%';
+                  }
+                  echo $pctParts ? implode(' • ', $pctParts) : '0.00%';
+                ?>
+              </td>
             </tr>
             <?php endforeach; ?>
           <?php endif; ?>
@@ -157,12 +167,13 @@ $typeLabels = [
 </div>
 
 <?php
-// Pre-compute the labels for the chart
+// Pre-compute the labels for the chart. Chart values use request counts (a
+// currency-agnostic metric) rather than summing mixed-currency amounts.
 $chartLabels = [];
 $chartValues = [];
 foreach ($data as $d) {
     $chartLabels[] = $typeLabels[$d['type']] ?? $d['type'];
-    $chartValues[] = $d['total_value'];
+    $chartValues[] = $d['count'];
 }
 ?>
 
@@ -173,7 +184,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const chartData = {
         labels: <?php echo json_encode($chartLabels); ?>,
         datasets: [{
-            label: 'Total Value',
+            label: 'Total Requests',
             data: <?php echo json_encode($chartValues); ?>,
             backgroundColor: [
                 '#007bff', '#28a745', '#dc3545', '#ff9800', '#6c757d'
@@ -197,7 +208,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            return 'Value: ' + new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD'}).format(context.parsed.x);
+                            return 'Requests: ' + context.parsed.x;
                         }
                     }
                 }
