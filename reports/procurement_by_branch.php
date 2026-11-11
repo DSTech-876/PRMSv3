@@ -34,27 +34,38 @@ foreach ($rows as $r) {
             'branch_id'   => $branchId,
             'branch_name' => $r['branch_name'],
             'count'       => 0,
-            'total_value' => 0.0,
             'currency_rows' => [],
         ];
     }
     $data[$branchId]['count'] += (int)$r['count'];
-    $data[$branchId]['total_value'] += (float)$r['total_value'];
     if ($r['currency'] !== null) {
         $data[$branchId]['currency_rows'][] = $r;
     }
 }
-usort($data, fn($a, $b) => $b['total_value'] <=> $a['total_value']);
+// Sort by request count (a currency-agnostic metric) rather than summing
+// mixed-currency values into a single scalar.
+usort($data, fn($a, $b) => $b['count'] <=> $a['count']);
 
 $totalCount = 0;
-$totalValue = 0;
 foreach ($data as $r) {
     $totalCount += $r['count'];
-    $totalValue += $r['total_value'];
 }
 $totalByCurrency = CurrencyService::groupTotals($rows, 'total_value', 'currency', $pdo);
 $totalValueDisplay = CurrencyService::formatGroupedTotals($totalByCurrency, ' • ', $pdo);
-$maxValue = max(array_column($data, 'total_value') ?: [1]) ?: 1;
+
+// Per-currency maxima so each currency's distribution bar is scaled against
+// its own range, never against a mixed-currency figure.
+$maxByCurrency = [];
+foreach ($rows as $r) {
+    if ($r['currency'] === null) {
+        continue;
+    }
+    $cur = $r['currency'];
+    $val = (float) $r['total_value'];
+    if (!isset($maxByCurrency[$cur]) || $val > $maxByCurrency[$cur]) {
+        $maxByCurrency[$cur] = $val;
+    }
+}
 ?>
 
 <div class="container-fluid mt-2">
@@ -134,11 +145,25 @@ $maxValue = max(array_column($data, 'total_value') ?: [1]) ?: 1;
               <td class="text-end"><?= $row['count'] ?></td>
               <td class="text-end fw-semibold"><?= CurrencyService::formatGroupedTotals(CurrencyService::groupTotals($row['currency_rows'], 'total_value', 'currency', $pdo), ' • ', $pdo) ?></td>
               <td>
-                <div style="width: 100%; background: #f0f0f0; border-radius: 4px; overflow: hidden; height: 24px;">
-                  <div style="width: <?= ($row['total_value'] / $maxValue) * 100 ?>%; background: linear-gradient(90deg, #007bff, #0dcaf0); height: 100%; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; color: white; font-size: 11px; font-weight: bold;">
-                    <?= $totalValue > 0 ? number_format(($row['total_value'] / $totalValue) * 100, 1) : '0.0' ?>%
+                <?php if (empty($row['currency_rows'])): ?>
+                  <div style="width: 100%; background: #f0f0f0; border-radius: 4px; overflow: hidden; height: 24px;"></div>
+                <?php else: ?>
+                  <?php foreach ($row['currency_rows'] as $cr): ?>
+                  <?php
+                    $crCur = $cr['currency'];
+                    $crVal = (float) $cr['total_value'];
+                    $crMax = $maxByCurrency[$crCur] ?? 1.0;
+                    $crGrandTotal = $totalByCurrency[$crCur]['total'] ?? 0.0;
+                    $crWidth = $crMax > 0 ? ($crVal / $crMax) * 100 : 0;
+                    $crPct = $crGrandTotal > 0 ? ($crVal / $crGrandTotal) * 100 : 0;
+                  ?>
+                  <div class="mb-1" style="width: 100%; background: #f0f0f0; border-radius: 4px; overflow: hidden; height: 20px;" title="<?= htmlspecialchars($crCur) ?>">
+                    <div style="width: <?= $crWidth ?>%; background: linear-gradient(90deg, #007bff, #0dcaf0); height: 100%; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; color: white; font-size: 10px; font-weight: bold;">
+                      <?= htmlspecialchars($crCur) ?> <?= number_format($crPct, 1) ?>%
+                    </div>
                   </div>
-                </div>
+                  <?php endforeach; ?>
+                <?php endif; ?>
               </td>
             </tr>
             <?php endforeach; ?>
