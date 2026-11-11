@@ -49,6 +49,7 @@ class RFQQuoteApprovalService
                        AND cu.is_active = 1
                        AND (
                            (cr.name = 'Director HRM&A' AND (pr.branch_id = 5 OR UPPER(COALESCE(b.branch_name, '')) LIKE '%HRM%'))
+                           OR (cr.name = 'Deputy Government Chemist' AND (pr.branch_id = 6 OR UPPER(COALESCE(b.branch_name, '')) LIKE '%ANALYTICAL%'))
                            OR (cr.name IN ('HOD', 'Branch Head') AND cu.branch_id = pr.branch_id)
                        )
                 )

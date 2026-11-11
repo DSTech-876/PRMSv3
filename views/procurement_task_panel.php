@@ -21,8 +21,35 @@ if (!is_array($taskPanelRequest) || (int)($taskPanelRequest['request_id'] ?? 0) 
 }
 
 $taskBoard   = ProcurementTaskService::getTaskBoard($pdo, $taskPanelRequest);
-$taskSummary = $taskBoard['summary'];
 $isParallel  = $taskBoard['mode'] === WorkflowModeService::MODE_PARALLEL;
+
+// Fund verification is optional/informational only — Branch Head approval
+// already confirms budget availability, so it is excluded from the visible
+// Procurement Progress board and its completion summary.
+$taskBoard['tasks'] = array_values(array_filter(
+    $taskBoard['tasks'],
+    static fn(array $task): bool => $task['key'] !== ProcurementTaskService::TASK_FUND_VERIFICATION
+));
+
+$taskSummary = [
+    'total'        => count($taskBoard['tasks']),
+    'completed'    => 0,
+    'in_progress'  => 0,
+    'pending'      => 0,
+    'not_required' => 0,
+];
+foreach ($taskBoard['tasks'] as $task) {
+    switch ($task['task_status']) {
+        case ProcurementTaskService::STATUS_COMPLETED:    $taskSummary['completed']++;    break;
+        case ProcurementTaskService::STATUS_IN_PROGRESS:  $taskSummary['in_progress']++;  break;
+        case ProcurementTaskService::STATUS_NOT_REQUIRED: $taskSummary['not_required']++; break;
+        default:                                          $taskSummary['pending']++;      break;
+    }
+}
+$actionableTasks = $taskSummary['total'] - $taskSummary['not_required'];
+$taskSummary['percent_complete'] = $actionableTasks > 0
+    ? (int)round(($taskSummary['completed'] / $actionableTasks) * 100)
+    : 100;
 ?>
 <div class="card shadow-sm mb-4" id="procurement-task-panel">
     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
