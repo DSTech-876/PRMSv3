@@ -49,7 +49,7 @@ final class WorkflowModeService
         'QUOTE_REQUESTOR_REVIEW_APPROVED', 'QUOTE_BRANCH_HEAD_APPROVAL_PENDING',
         'QUOTE_APPROVED', 'COMMITMENT_REVIEW_PENDING', 'COMMITMENTS_PENDING',
         'COMMITMENT_APPROVED', 'PO_PENDING', 'PO_APPROVED', 'INVOICE_RECEIVED',
-        'AWARDED', 'COMPLETED',
+        'AWARDED',
     ];
 
     /** @var array<string,string>|null simple per-request memo cache */
@@ -198,7 +198,24 @@ final class WorkflowModeService
                   AND (entity_type IS NULL OR entity_type = '' OR entity_type = 'REQUEST')
             ");
             $stmt->execute([$requestId]);
-            return (int)$stmt->fetchColumn() > 0;
+            $approved = (int)$stmt->fetchColumn();
+            
+            if ($approved === 0) {
+                return false;
+            }
+            
+            // Ensure no REQUEST-level approval is rejected.
+            $stmt = $pdo->prepare("
+                SELECT COUNT(*)
+                FROM request_approvals
+                WHERE request_id = ?
+                  AND status = 'rejected'
+                  AND (entity_type IS NULL OR entity_type = '' OR entity_type = 'REQUEST')
+            ");
+            $stmt->execute([$requestId]);
+            $rejected = (int)$stmt->fetchColumn();
+            
+            return $rejected === 0;
         } catch (Throwable $e) {
             return false;
         }

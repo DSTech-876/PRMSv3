@@ -66,6 +66,10 @@ if ($action === 'mark') {
         taskApiFail(404, 'Request not found');
     }
 
+    if (!canCurrentUserAccessRequestRecord($request)) {
+        taskApiFail(403, 'You do not have permission to access this request');
+    }
+
     if (!ProcurementTaskService::markTask($pdo, $requestId, $taskKey, $status, $userId, $notes)) {
         taskApiFail(422, 'Unable to record task state');
     }

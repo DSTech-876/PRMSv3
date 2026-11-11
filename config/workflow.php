@@ -208,6 +208,12 @@ function workflowStatusGateAllows(array $request, array $allowedStatuses, string
     $allowed = array_map('strtoupper', $allowedStatuses);
 
     if (in_array($current, $allowed, true)) {
+        // In PARALLEL_MODE, even if the status is in the allowlist, we must also
+        // verify that the request has cleared the approval chain.
+        $pdo = workflowPdo($pdo);
+        if ($pdo && WorkflowModeService::resolveRequestMode($pdo, $request) === WorkflowModeService::MODE_PARALLEL) {
+            return WorkflowModeService::isApprovedForProcurement($pdo, (int)($request['request_id'] ?? 0));
+        }
         return true;
     }
 
@@ -246,7 +252,8 @@ function canTransitionInMode(array $request, string $next, ?PDO $pdo = null): bo
     }
 
     // Any known operational status is reachable once the request is approved.
-    return array_key_exists($next, allowedTransitions()) || $next === 'COMPLETED';
+    // DRAFT is not an operational status and must be explicitly excluded.
+    return ($next !== 'DRAFT' && array_key_exists($next, allowedTransitions())) || $next === 'COMPLETED';
 }
 
 

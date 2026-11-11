@@ -35,6 +35,7 @@ if (!function_exists('readSystemConfigFlag')) {
 // Handle form submission BEFORE any output
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
+        requireCsrfToken('/admin/settings.php');
         WorkflowConfigurationService::seedDefaults($pdo);
         $enable_notifications = isset($_POST['enable_notifications']) ? 1 : 0;
         $enable_rfq_auto_email = isset($_POST['enable_rfq_auto_email']) ? 1 : 0;
@@ -350,6 +351,7 @@ require_once $_SERVER['DOCUMENT_ROOT'].'/includes/header.php';
                 </div>
                 <div class="card-body">
                     <form method="POST" class="needs-validation" novalidate>
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(ensureCsrfToken()) ?>">
 
                         <!-- ═══ Procurement Workflow Mode ═══ -->
                         <h5 class="fw-bold mb-3"><i class="bi bi-diagram-3 me-2"></i> Procurement Workflow Mode</h5>

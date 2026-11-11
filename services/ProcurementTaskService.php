@@ -251,18 +251,24 @@ final class ProcurementTaskService
         $completedBy   = $isCompleted ? $userId : null;
         $completedDate = $isCompleted ? date('Y-m-d H:i:s') : null;
 
-        // Portable upsert: UPDATE first, INSERT when no existing row matched.
-        // Avoids MySQL-only ON DUPLICATE KEY UPDATE so the same code path is
-        // exercised by the SQLite-backed unit tests.
+        // Portable upsert: first check if the row exists, then UPDATE or INSERT.
+        // This ensures idempotency even when UPDATE doesn't change any values
+        // (MySQL reports rowCount() === 0 when a row exists with unchanged values).
         try {
-            $update = $pdo->prepare('
-                UPDATE procurement_tasks
-                SET task_status = ?, task_completed_by = ?, task_completed_date = ?, notes = ?
+            $exists = $pdo->prepare('
+                SELECT 1 FROM procurement_tasks
                 WHERE request_id = ? AND task_key = ?
             ');
-            $update->execute([$status, $completedBy, $completedDate, $notes, $requestId, $taskKey]);
+            $exists->execute([$requestId, $taskKey]);
+            $rowExists = $exists->fetch() !== false;
 
-            if ($update->rowCount() > 0) {
+            if ($rowExists) {
+                $update = $pdo->prepare('
+                    UPDATE procurement_tasks
+                    SET task_status = ?, task_completed_by = ?, task_completed_date = ?, notes = ?
+                    WHERE request_id = ? AND task_key = ?
+                ');
+                $update->execute([$status, $completedBy, $completedDate, $notes, $requestId, $taskKey]);
                 return true;
             }
 

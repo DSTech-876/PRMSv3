@@ -15,7 +15,6 @@
  * is purely informational and changes no behaviour.
  */
 $REQUIRE_PERMISSION = 'view_procurement_progress';
-$ALTERNATE_PERMISSIONS = ['view_requests'];
 require_once $_SERVER['DOCUMENT_ROOT'] . '/config/page_guard.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/config/db.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/config/helper.php';
