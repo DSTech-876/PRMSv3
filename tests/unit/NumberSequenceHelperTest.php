@@ -134,9 +134,30 @@ final class NumberSequenceHelperTest extends PHPUnit\Framework\TestCase
     public function testYearlyPurchaseOrderSequenceIsScopedByYear(): void
     {
         $currentYear = date('Y');
+        $this->pdo->exec("CREATE TABLE purchase_orders (po_id INTEGER PRIMARY KEY AUTOINCREMENT, po_number TEXT UNIQUE)");
         $this->assertSame(sprintf('PO-%s-0001', $currentYear), previewYearlyPONumber($this->pdo));
         $this->assertSame(sprintf('PO-%s-0001', $currentYear), generateYearlyPONumber($this->pdo));
         $this->assertSame(sprintf('PO-%s-0002', $currentYear), previewYearlyPONumber($this->pdo));
+    }
+
+    public function testYearlyPurchaseOrderSequenceSkipsPastExistingPoWhenSequenceRowIsStale(): void
+    {
+        $currentYear = date('Y');
+        $this->pdo->exec("CREATE TABLE purchase_orders (po_id INTEGER PRIMARY KEY AUTOINCREMENT, po_number TEXT UNIQUE)");
+        $this->pdo->exec(sprintf(
+            "INSERT INTO purchase_orders (po_number) VALUES ('PO-%s-0001')",
+            $currentYear
+        ));
+        $this->pdo->exec(sprintf(
+            "INSERT INTO number_sequences (sequence_key, next_value, created_at, updated_at)
+             VALUES ('purchase_order_number_%s', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            $currentYear
+        ));
+
+        // A stale/reset sequence row must not reissue a po_number that already exists.
+        $this->assertSame(sprintf('PO-%s-0002', $currentYear), previewYearlyPONumber($this->pdo));
+        $this->assertSame(sprintf('PO-%s-0002', $currentYear), generateYearlyPONumber($this->pdo));
+        $this->assertSame(sprintf('PO-%s-0003', $currentYear), generateYearlyPONumber($this->pdo));
     }
 
     public function testNextSortOrderValueReturnsNextPosition(): void
