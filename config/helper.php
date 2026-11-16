@@ -481,7 +481,11 @@ function previewYearlyPONumber(PDO $pdo): string
     $sequenceKey = 'purchase_order_number_' . $year;
 
     if (numberSequencesTableExists($pdo)) {
-        return sprintf("PO-%s-%04d", $year, peekSequenceValue($pdo, $sequenceKey, 1));
+        $nextValue = max(
+            peekSequenceValue($pdo, $sequenceKey, 1),
+            prefixedSequenceFloor($pdo, 'purchase_orders', 'po_number', "PO-$year-")
+        );
+        return sprintf("PO-%s-%04d", $year, $nextValue);
     }
 
     $stmt = $pdo->prepare("
@@ -504,7 +508,8 @@ function generateYearlyPONumber(PDO $pdo): string
     $sequenceKey = 'purchase_order_number_' . $year;
 
     if (numberSequencesTableExists($pdo)) {
-        return sprintf("PO-%s-%04d", $year, nextSequenceValue($pdo, $sequenceKey, 1));
+        $nextValue = nextFlooredSequenceValue($pdo, $sequenceKey, 'purchase_orders', 'po_number', "PO-$year-");
+        return sprintf("PO-%s-%04d", $year, $nextValue);
     }
 
     $stmt = $pdo->prepare("
