@@ -46,15 +46,17 @@ if (!$i) {
     exit;
 }
 
-$balance = (float)$i['invoice_amount'] - (float)$i['total_paid'];
+// Round to 2 decimal places so stray floating-point residue (e.g. 0.01999999999998)
+// from the DECIMAL->float conversion/subtraction never surfaces as a non-zero cents balance.
+$balance = round((float)$i['invoice_amount'] - (float)$i['total_paid'], 2);
 $payCurrency = 'JMD'; // Invoice/payment amounts are always stored in JMD
 
 /* Handle POST before output */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    $amount = isset($_POST['payment_amount']) ? (float)$_POST['payment_amount'] : 0.0;
+    $amount = isset($_POST['payment_amount']) ? round((float)$_POST['payment_amount'], 2) : 0.0;
 
-if ($amount > $balance) {
+if ($amount > $balance + 0.004) {
     logAudit($pdo, 'POLICY', null, 'OVERPAY_ATTEMPT', 'Payment exceeds invoice balance');
  
     modalPop(
@@ -97,11 +99,12 @@ logAudit(
     /* Recalculate invoice payments */
     $sum = $pdo->prepare("SELECT COALESCE(SUM(payment_amount), 0) FROM payments WHERE invoice_id = ?");
     $sum->execute([$invoice_id]);
-    $totalPaid = (float)$sum->fetchColumn();
+    $totalPaid = round((float)$sum->fetchColumn(), 2);
+    $invoiceAmountRounded = round((float)$i['invoice_amount'], 2);
 
     /* Update invoice status */
     $newStatus = 'Unpaid';
-    if ($totalPaid >= (float)$i['invoice_amount']) {
+    if ($totalPaid >= $invoiceAmountRounded) {
         $newStatus = 'Paid';
     } elseif ($totalPaid > 0) {
         $newStatus = 'Partially Paid';
@@ -151,8 +154,9 @@ logAudit(
         $poData = $poCheck->fetch(PDO::FETCH_ASSOC);
 
         if ($poData) {
-            $totalPaidPO = (float)($poData['total_paid'] ?? 0);
-            if ($totalPaidPO >= (float)$poData['po_total']) {
+            $totalPaidPO = round((float)($poData['total_paid'] ?? 0), 2);
+            $poTotalRounded = round((float)$poData['po_total'], 2);
+            if ($totalPaidPO >= $poTotalRounded) {
                 $close = $pdo->prepare("UPDATE purchase_orders SET status = 'Closed' WHERE po_id = ?");
                 $close->execute([$i['po_id']]);
                 
@@ -177,7 +181,7 @@ logAudit(
         }
     } elseif ($i['commitment_id']) {
         /* Service contract: Check if invoice is fully paid → complete request */
-        if ($totalPaid >= (float)$i['invoice_amount']) {
+        if ($totalPaid >= $invoiceAmountRounded) {
             $completedReqStmt = $pdo->prepare("
                 SELECT c.request_id
                 FROM commitments c

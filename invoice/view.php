@@ -45,8 +45,9 @@ $attStmt = $pdo->prepare("
 $attStmt->execute([$id]);
 $attachments = $attStmt->fetchAll(PDO::FETCH_ASSOC);
 
-$totalPaid = array_sum(array_column($payments, 'payment_amount'));
-$balance   = (float)$i['invoice_amount'] - $totalPaid;
+$totalPaid = round((float)array_sum(array_column($payments, 'payment_amount')), 2);
+// Round to 2dp so stray floating-point residue never shows as a non-zero cents balance.
+$balance   = round((float)$i['invoice_amount'] - $totalPaid, 2);
 $paidPct   = ($i['invoice_amount'] > 0) ? min(100, round(($totalPaid / (float)$i['invoice_amount']) * 100)) : 0;
 
 $statusMap = [
