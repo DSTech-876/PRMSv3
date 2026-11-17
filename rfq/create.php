@@ -5,6 +5,7 @@ require_once $_SERVER['DOCUMENT_ROOT'].'/config/db.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/helper.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/notifications.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/workflow.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/services/SecureFileStorage.php';
 
 $request_id = (int)($_GET['request_id'] ?? 0);
 
