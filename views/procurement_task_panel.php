@@ -80,7 +80,7 @@ $taskSummary['percent_complete'] = $actionableTasks > 0
 
         <div class="table-responsive">
             <table class="table table-sm align-middle mb-0 procurement-task-table">
-                <thead class="table-light">
+                <thead class="table-dark">
                     <tr>
                         <th scope="col" style="width: 1%"></th>
                         <th scope="col">Task</th>
