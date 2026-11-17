@@ -46,9 +46,12 @@ if (!$i) {
     exit;
 }
 
-// Round to 2 decimal places so stray floating-point residue (e.g. 0.01999999999998)
-// from the DECIMAL->float conversion/subtraction never surfaces as a non-zero cents balance.
-$balance = round((float)$i['invoice_amount'] - (float)$i['total_paid'], 2);
+// Normalize operands before subtraction to eliminate floating-point residue from
+// DECIMAL->float conversion. Rounding each operand independently prevents residue
+// that rounding only the final difference would not catch (e.g. round(0.01999999999998, 2) is still 0.02).
+$invoiceAmountNorm = round((float)$i['invoice_amount'], 2);
+$totalPaidNorm = round((float)$i['total_paid'], 2);
+$balance = $invoiceAmountNorm - $totalPaidNorm;
 $payCurrency = 'JMD'; // Invoice/payment amounts are always stored in JMD
 
 /* Handle POST before output */
