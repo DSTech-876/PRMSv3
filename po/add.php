@@ -663,18 +663,6 @@ function showLoadingIndicator() {
 window.addEventListener('load', function() {
     console.log('Page loaded. Initializing budget display...');
     updateBudgetDisplay();
-    
-    // Ensure form has proper submission handler
-    const form = document.getElementById('poForm');
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            console.log('Form submit event triggered');
-            if (!validateForm()) {
-                e.preventDefault();
-                console.log('Form submission prevented by validation');
-            }
-        });
-    }
 });
 </script>
 
