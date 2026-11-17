@@ -1401,6 +1401,25 @@ function ensureRequestApprovalChain(PDO $pdo, array $request): array {
             return ['repaired' => false, 'reason' => 'pending_exists', 'roles' => []];
         }
 
+        // If a stage has already been approved/rejected, the chain is not
+        // "missing" — the request's status column simply failed to advance
+        // (e.g. a prior approval attempt that errored after recording the
+        // stage decision). Recreating pending rows here would reopen an
+        // already-decided stage and trap the request in a perpetual
+        // "awaiting approval" state. Bail out instead so the inconsistency
+        // can be surfaced and corrected rather than silently masked.
+        $actionedStmt = $pdo->prepare("
+            SELECT COUNT(*)
+            FROM request_approvals
+            WHERE request_id = ?
+              AND entity_type = 'REQUEST'
+              AND status IN ('approved', 'rejected')
+        ");
+        $actionedStmt->execute([$requestId]);
+        if ((int)$actionedStmt->fetchColumn() > 0) {
+            return ['repaired' => false, 'reason' => 'already_actioned', 'roles' => []];
+        }
+
         $roles = createApprovalChain($pdo, $requestId, $requestType, $estimatedValue, $branchId);
         logAudit(
             $pdo,
