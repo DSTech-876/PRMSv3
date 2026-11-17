@@ -154,6 +154,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'approve') {
 
         try {
+        $approverName = $current_role;
+        if ($current_role !== $nextApproval['role']) {
+            $approverName .= ' (as fallback for ' . $nextApproval['role'] . ')';
+        }
+
+        // Determine next status dynamically and validate the transition
+        // BEFORE recording the stage approval. If enforceTransition() throws,
+        // request_approvals must stay untouched — otherwise a stage can be
+        // left marked "approved" while procurement_requests.status never
+        // advances, trapping the request in a perpetual "awaiting approval"
+        // state on the Procurement Progress panel.
+        $nextStatus = getNextStatusAfterApproval($pdo, $id, $nextApproval['role']);
+
+        enforceTransition($request, $nextStatus);
+
+        $pdo->beginTransaction();
+
         $pdo->prepare("
             UPDATE request_approvals
             SET status = 'approved',
@@ -162,11 +179,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             WHERE id = ?
         ")->execute([$user_id, $nextApproval['id']]);
 
-        $approverName = $current_role;
-        if ($current_role !== $nextApproval['role']) {
-            $approverName .= ' (as fallback for ' . $nextApproval['role'] . ')';
-        }
-
         logAudit(
             $pdo,
             'request_approvals',
@@ -174,11 +186,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'APPROVE_STAGE',
             'Approved by ' . $approverName
         );
-
-        // Determine next status dynamically
-        $nextStatus = getNextStatusAfterApproval($pdo, $id, $nextApproval['role']);
-        
-        enforceTransition($request, $nextStatus);
 
         $pdo->prepare("
             UPDATE procurement_requests
@@ -196,6 +203,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'STATUS_CHANGE',
             'Approved → ' . $nextStatus . ' by ' . $approverName
         );
+
+        $pdo->commit();
 
         logRequestTimeline(
             $pdo,
@@ -239,6 +248,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         exit;
         } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             pop(extractDbMessage($e), "/procurement/view.php?id=" . $id, POP_DEFAULT_DELAY_MS, 'error');
             exit;
         }

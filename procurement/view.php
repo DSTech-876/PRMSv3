@@ -1433,12 +1433,11 @@ if ($current === 'AWARDED' && $requestType === 'REGULAR' && !$originalCommitment
 
                     <?php
                     // --- Fund verification ---
-                    // Finance Officer and the supervising Director Accounts & Finance
-                    // both act on the finance stage. The Director has no access to
-                    // /commitments/add.php (an operational Finance/Procurement page),
-                    // so route finance-stage actors to the dedicated verification page
-                    // whenever the approval button above doesn't already cover it.
-                    $financeStageRoles = ['Finance Officer', 'Director Accounts & Finance', 'Admin', 'SuperAdmin'];
+                    // Only Finance Officer (and Admin/SuperAdmin) see the Verify Funds
+                    // quick-action button. Accounts roles (Director Accounts & Finance,
+                    // Accounts Officer) do not get this button — they approve the
+                    // finance stage via the standard approval action instead.
+                    $financeStageRoles = ['Finance Officer', 'Admin', 'SuperAdmin'];
                     $canActOnFinanceStage = in_array($role, $financeStageRoles, true);
                     $canUseCommitmentPage = in_array($role, ['Finance Officer', 'Procurement Officer', 'Admin', 'SuperAdmin'], true);
                     $fundsVerifiableStatuses = ['HOD_APPROVED', 'DIRECTOR_APPROVED', 'GC_APPROVED', 'QUOTE_APPROVED'];
