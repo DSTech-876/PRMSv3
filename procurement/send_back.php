@@ -1,5 +1,6 @@
 <?php
 $REQUIRE_PERMISSION = 'approve_request';
+$ALTERNATE_PERMISSIONS = ['send_back_for_edit'];
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/page_guard.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/db.php';
 require_once $_SERVER['DOCUMENT_ROOT'].'/config/helper.php';
@@ -78,7 +79,11 @@ $canSendBackAsApprover = $nextApproval
 $canSendBackAsProcurement = in_array($currentRole, ['Procurement Officer', 'Admin', 'SuperAdmin'], true)
     && in_array($currentStatus, $procurementEditableStatuses, true);
 
-if (!$canSendBackAsApprover && !$canSendBackAsProcurement) {
+// Admin-granted users may be given the 'send_back_for_edit' permission (per-role
+// or per-user override) to send requests back regardless of their role/stage.
+$canSendBackViaPermission = hasPermission('send_back_for_edit');
+
+if (!$canSendBackAsApprover && !$canSendBackAsProcurement && !$canSendBackViaPermission) {
     modalPop('Unauthorized', 'You are not allowed to send this request back for edit.', '/procurement/view.php?id=' . $id, 'error');
 }
 
